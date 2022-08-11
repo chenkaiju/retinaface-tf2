@@ -1,0 +1,12 @@
+{
+    "image": "retinaface-tf2:latest",
+	"runArgs": [
+		"--gpus=all",
+		"--shm-size=32G"
+	],
+	"extensions": [
+		"donjayamanne.python-extension-pack",
+		"eamodio.gitlens",
+		"visualstudioexptteam.intellicode-api-usage-examples"
+	],
+}
