@@ -253,11 +253,12 @@ def _jaccard(box_a, box_b):
 def decode_tf(labels, priors, variances=[0.1, 0.2]):
     """tensorflow decoding"""
     bbox = _decode_bbox(labels[:, :4], priors, variances)
-    landm = _decode_landm(labels[:, 4:14], priors, variances)
-    landm_valid = labels[:, 14][:, tf.newaxis]
-    conf = labels[:, 15][:, tf.newaxis]
+    landm = _decode_landm(labels[:, 4:4+136], priors, variances)
+    param = labels[:, 4+136:4+136+62]
+    landm_valid = labels[:, -2][:, tf.newaxis]
+    conf = labels[:, -1][:, tf.newaxis]
 
-    return tf.concat([bbox, landm, landm_valid, conf], axis=1)
+    return tf.concat([bbox, landm, param, landm_valid, conf], axis=1)
 
 
 def _decode_bbox(pre, priors, variances=[0.1, 0.2]):
@@ -290,10 +291,10 @@ def _decode_landm(pre, priors, variances=[0.1, 0.2]):
     Return:
         decoded landm predictions
     """
-    landms = tf.concat(
-        [priors[:, :2] + pre[:, :2] * variances[0] * priors[:, 2:],
-         priors[:, :2] + pre[:, 2:4] * variances[0] * priors[:, 2:],
-         priors[:, :2] + pre[:, 4:6] * variances[0] * priors[:, 2:],
-         priors[:, :2] + pre[:, 6:8] * variances[0] * priors[:, 2:],
-         priors[:, :2] + pre[:, 8:10] * variances[0] * priors[:, 2:]], axis=1)
+    landms = []
+    for i in range(0, pre.shape[1], 2):
+        landms.append(priors[:, :2] + pre[:, i:i+2] * variances[0] * priors[:, 2:])
+    
+    landms = tf.concat(landms, axis=1)
+    
     return landms

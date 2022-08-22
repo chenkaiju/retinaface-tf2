@@ -54,14 +54,14 @@ def get_facebox2d(landmark_2d, ratio=0.1):
     return facebox
 
 def _parse_tfds(bfm, img_dim, priors, match_thresh, 
-                ignore_thresh, variances, numFace=2):
+                ignore_thresh, variances, numFace=1):
     
     def parse_tfds(dataset):
         
         labels = []
         image = dataset['image']
-        
-        for i in range(numFace):
+
+        for n in range(numFace):
             label = []
             param = dataset['param']
             
@@ -70,13 +70,15 @@ def _parse_tfds(bfm, img_dim, priors, match_thresh,
             
             facebox = tf.squeeze(get_facebox2d(lmk_2d))
             
+            # stack and normalize facebox [0, 1]
             for i in range(facebox.shape[0]):
-                label.append(facebox[i])
-                
+                label.append(facebox[i] / img_dim)
+            
+            # stack and normalize lmk [0, 1]
             lmk_2d = tf.transpose(tf.squeeze(lmk_2d))
             for i in range(lmk_2d.shape[0]):
                 for j in range(lmk_2d.shape[1]):
-                    label.append(lmk_2d[i][j])
+                    label.append(lmk_2d[i][j] / img_dim)
             
             for p in param:
                 label.append(p)
