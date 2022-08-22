@@ -58,40 +58,46 @@ def _parse_tfds(bfm, img_dim, priors, match_thresh,
     
     def parse_tfds(dataset):
         
-        labels = []
+        labels = tf.TensorArray(tf.float32, size=0, dynamic_size=True) #, dynamic_size=True, clear_after_read=False
         image = dataset['image']
 
-        for n in range(numFace):
-            label = []
+        for n in tf.range(numFace):
+            l = 0
+            label = tf.TensorArray(tf.float32, size=0, dynamic_size=True)
             param = dataset['param']
             
             lmk_3d = reconstruct_landmark(bfm, param, img_dim)
-            lmk_2d = lmk_3d[:, :2]
+            lmk_2d = tf.cast(lmk_3d[:, :2], tf.float32)
             
             facebox = tf.squeeze(get_facebox2d(lmk_2d))
             
             # stack and normalize facebox [0, 1]
             for i in range(facebox.shape[0]):
-                label.append(facebox[i] / img_dim)
+                label = label.write(l, facebox[i] / img_dim)
+                l += 1
             
             # stack and normalize lmk [0, 1]
             lmk_2d = tf.transpose(tf.squeeze(lmk_2d))
             for i in range(lmk_2d.shape[0]):
                 for j in range(lmk_2d.shape[1]):
-                    label.append(lmk_2d[i][j] / img_dim)
+                    label = label.write(l, lmk_2d[i][j] / img_dim)
+                    l +=  1
             
+            param = tf.cast(param, tf.float32)
             for p in param:
-                label.append(p)
+                label = label.write(l, p)
+                l += 1
 
             # valid
-            label.append(tf.constant(1., dtype=tf.float64))
+            label = label.write(l, tf.constant(1., dtype=tf.float32))
+            l += 1
                 
-            labels.append(label)
-        
-        labels = tf.cast(tf.stack(labels, axis=0), tf.float32)
-        
+            labels = labels.write(n, label.stack())
+                
+        labels = labels.stack()
+
         image, labels = _transform_data(img_dim, priors, match_thresh, 
-                                 ignore_thresh, variances)(image, labels)
+                                        ignore_thresh, variances)(image, labels)
     
         return image, labels
     
@@ -132,7 +138,6 @@ def _transform_data(img_dim, priors, match_thresh, ignore_thresh, variances,
 
         return img, labels
     return transform_data
-
 
 def load_tfds_dataset(bfm, tfds_name, batch_size, img_dim,
                           using_bin=True, using_flip=True, using_distort=True,
