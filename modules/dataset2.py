@@ -54,7 +54,7 @@ def get_facebox2d(landmark_2d, ratio=0.1):
     return facebox
 
 def _parse_tfds(bfm, img_dim, priors, match_thresh, 
-                ignore_thresh, variances, numFace=1):
+                ignore_thresh, variances, numFace=2):
     
     def parse_tfds(dataset):
         
@@ -86,9 +86,9 @@ def _parse_tfds(bfm, img_dim, priors, match_thresh,
                 
             labels.append(label)
         
-        labels = tf.cast(tf.squeeze(tf.stack(labels, axis=0)), tf.float32)
+        labels = tf.cast(tf.stack(labels, axis=0), tf.float32)
         
-        labels = _transform_data(img_dim, priors, match_thresh, 
+        image, labels = _transform_data(img_dim, priors, match_thresh, 
                                  ignore_thresh, variances)(image, labels)
     
         return image, labels
