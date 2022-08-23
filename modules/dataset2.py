@@ -1,6 +1,6 @@
 import tensorflow as tf
 import tensorflow_datasets as tfds
-from modules.anchor2 import encode_tf
+from modules.anchor2 import encode_tf, decode_tf
 
 def DecodeParams(param):
     if len(param) != 62:
@@ -66,21 +66,22 @@ def _parse_tfds(bfm, img_dim, priors, match_thresh,
             label = tf.TensorArray(tf.float32, size=0, dynamic_size=True)
             param = dataset['param']
             
-            lmk_3d = reconstruct_landmark(bfm, param, img_dim)
+            img_dim_raw = image.shape[0]
+            lmk_3d = reconstruct_landmark(bfm, param, img_dim_raw)
             lmk_2d = tf.cast(lmk_3d[:, :2], tf.float32)
             
             facebox = tf.squeeze(get_facebox2d(lmk_2d))
             
             # stack and normalize facebox [0, 1]
             for i in range(facebox.shape[0]):
-                label = label.write(l, facebox[i] / img_dim)
+                label = label.write(l, facebox[i] / img_dim_raw)
                 l += 1
             
             # stack and normalize lmk [0, 1]
             lmk_2d = tf.transpose(tf.squeeze(lmk_2d))
             for i in range(lmk_2d.shape[0]):
                 for j in range(lmk_2d.shape[1]):
-                    label = label.write(l, lmk_2d[i][j] / img_dim)
+                    label = label.write(l, lmk_2d[i][j] / img_dim_raw)
                     l +=  1
             
             param = tf.cast(param, tf.float32)
@@ -105,7 +106,7 @@ def _parse_tfds(bfm, img_dim, priors, match_thresh,
 
 
 def _transform_data(img_dim, priors, match_thresh, ignore_thresh, variances,
-                    using_crop=False, using_resize=False, using_flip=False, 
+                    using_crop=False, using_resize=True, using_flip=False, 
                     using_distort=True, using_encoding=True):
     def transform_data(img, labels):
         img = tf.cast(img, tf.float32)
@@ -171,6 +172,42 @@ def load_tfds_dataset(bfm, tfds_name, batch_size, img_dim,
         buffer_size=tf.data.experimental.AUTOTUNE)
 
     return dataset
+
+def unpack_label(label, priors):
+    """_summary_
+
+    Args:
+        label (tensor): [n, 204]
+        priors
+
+    Returns:
+        faceBox (tensor): [n, 4]
+        landmarks (tensor): [n, 2, 68]
+        param (tensor): [n, 62]
+        valid (tensor): [n, 1]
+        conf (tensor): [n, 1]
+    """
+    decode_preds = decode_tf(label, priors)
+    selected_indices = tf.image.non_max_suppression(
+        boxes=decode_preds[:, :4],
+        scores=decode_preds[:, -1],
+        max_output_size=tf.shape(decode_preds)[0],
+        iou_threshold=0.4,
+        score_threshold=0.02)
+    out = tf.gather(decode_preds, selected_indices)
+    
+    faceBox = out[:, :4]
+    landmarks = out[:, 4:4+136]
+    landmarks = tf.transpose(tf.reshape(landmarks, (landmarks.shape[0], 68, 2)))
+    
+    param = out[:, 4+136: 4+136+62]
+    
+    valid = out[:, -2]
+    
+    conf = out[:, -1]
+    
+    return tf.squeeze(faceBox), tf.squeeze(landmarks), \
+           tf.squeeze(param), tf.squeeze(valid), tf.squeeze(conf)
 
 
 ###############################################################################
@@ -286,25 +323,6 @@ def _pad_to_square(img):
 
 
 def _resize(img, labels, img_dim):
-    w_f = tf.cast(tf.shape(img)[1], tf.float32)
-    h_f = tf.cast(tf.shape(img)[0], tf.float32)
-    # locs = tf.stack([labels[:, 0] / w_f,  labels[:, 1] / h_f,
-    #                  labels[:, 2] / w_f,  labels[:, 3] / h_f,
-    #                  labels[:, 4] / w_f,  labels[:, 5] / h_f,
-    #                  labels[:, 6] / w_f,  labels[:, 7] / h_f,
-    #                  labels[:, 8] / w_f,  labels[:, 9] / h_f,
-    #                  labels[:, 10] / w_f, labels[:, 11] / h_f,
-    #                  labels[:, 12] / w_f, labels[:, 13] / h_f], axis=1)
-    lmkNum = 68
-    faceBoxNum = 2
-    labels_remain = labels[:, (lmkNum+faceBoxNum)*2:]
-    locs_ = []
-    for i in range(lmkNum+faceBoxNum):
-        locs_.append(labels[:, i*2] / w_f)
-        locs_.append(labels[:, i*2+1] / h_f)
-    labels = tf.stack(locs_, axis=1)
-    labels = tf.clip_by_value(labels, 0, 1)
-    labels = tf.concat([labels, labels_remain], axis=1)
 
     resize_case = tf.random.uniform([], 0, 5, dtype=tf.int32)
 
