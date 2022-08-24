@@ -1,12 +1,13 @@
 # general setting
 batch_size: 4
-input_size: 640
+input_size: 450
 backbone_type: 'ResNet50'  # 'ResNet50', 'MobileNetV2'
-sub_name: 'retinaface_res50'
+sub_name: 'retinaface_res50_new'
 
 # training dataset
+tfds_name: 'the300wlp_tfds'
 dataset_path: './data/widerface_train_bin.tfrecord'
-dataset_len: 12880  # number of training samples
+dataset_len: 48980 #12880  # number of training samples
 using_bin: True
 using_flip: True
 using_distort: True

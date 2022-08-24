@@ -43,9 +43,9 @@ def Backbone(backbone_type='ResNet50', use_pretrain=True):
         if backbone_type == 'ResNet50':
             extractor = ResNet50(
                 input_shape=x.shape[1:], include_top=False, weights=weights)
-            pick_layer1 = 80  # [80, 80, 512]
-            pick_layer2 = 142  # [40, 40, 1024]
-            pick_layer3 = 174  # [20, 20, 2048]
+            pick_layer1 = 80  # [size/8, size/8, 512] -> [80, 80, 512]
+            pick_layer2 = 142  # [size/16, size/16, 1024] -> [40, 40, 1024]
+            pick_layer3 = 174  # [size/32, size/32, 2048] -> [20, 20, 2048]
             preprocess = tf.keras.applications.resnet.preprocess_input
         elif backbone_type == 'MobileNetV2':
             extractor = MobileNetV2(
@@ -159,54 +159,57 @@ class SSH(tf.keras.layers.Layer):
 
 class BboxHead(tf.keras.layers.Layer):
     """Bbox Head Layer"""
-    def __init__(self, num_anchor, wd, name='BboxHead', **kwargs):
+    def __init__(self, num_anchor, wd, name='BboxHead', pointNum=2, **kwargs):
         super(BboxHead, self).__init__(name=name, **kwargs)
+        self.length = pointNum * 2
         self.num_anchor = num_anchor
-        self.conv = Conv2D(filters=num_anchor * 4, kernel_size=1, strides=1)
+        self.conv = Conv2D(filters=num_anchor * self.length, kernel_size=1, strides=1)
 
     def call(self, x):
         h, w = tf.shape(x)[1], tf.shape(x)[2]
         x = self.conv(x)
 
-        return tf.reshape(x, [-1, h * w * self.num_anchor, 4])
+        return tf.reshape(x, [-1, h * w * self.num_anchor, self.length])
 
 
 class LandmarkHead(tf.keras.layers.Layer):
     """Landmark Head Layer"""
-    def __init__(self, num_anchor, wd, name='LandmarkHead', **kwargs):
+    def __init__(self, num_anchor, wd, name='LandmarkHead', pointNum=68, **kwargs):
         super(LandmarkHead, self).__init__(name=name, **kwargs)
+        self.length = pointNum * 2
         self.num_anchor = num_anchor
-        self.conv = Conv2D(filters=num_anchor * 10, kernel_size=1, strides=1)
+        self.conv = Conv2D(filters=num_anchor * self.length, kernel_size=1, strides=1)
 
     def call(self, x):
         h, w = tf.shape(x)[1], tf.shape(x)[2]
         x = self.conv(x)
 
-        return tf.reshape(x, [-1, h * w * self.num_anchor, 10])
+        return tf.reshape(x, [-1, h * w * self.num_anchor, self.length])
 
 
 class ClassHead(tf.keras.layers.Layer):
     """Class Head Layer"""
-    def __init__(self, num_anchor, wd, name='ClassHead', **kwargs):
+    def __init__(self, num_anchor, wd, name='ClassHead', classNum=2, **kwargs):
         super(ClassHead, self).__init__(name=name, **kwargs)
+        self.length = classNum
         self.num_anchor = num_anchor
-        self.conv = Conv2D(filters=num_anchor * 2, kernel_size=1, strides=1)
+        self.conv = Conv2D(filters=num_anchor * self.length, kernel_size=1, strides=1)
 
     def call(self, x):
         h, w = tf.shape(x)[1], tf.shape(x)[2]
         x = self.conv(x)
 
-        return tf.reshape(x, [-1, h * w * self.num_anchor, 2])
+        return tf.reshape(x, [-1, h * w * self.num_anchor, self.length])
 
 
 def RetinaFaceModel(cfg, training=False, iou_th=0.4, score_th=0.02,
                     name='RetinaFaceModel'):
     """Retina Face Model"""
-    input_size = cfg['input_size'] if training else None
-    wd = cfg['weights_decay']
-    out_ch = cfg['out_channel']
-    num_anchor = len(cfg['min_sizes'][0])
-    backbone_type = cfg['backbone_type']
+    input_size = cfg['input_size'] if training else None # 450
+    wd = cfg['weights_decay'] # 5e-4
+    out_ch = cfg['out_channel'] # 256
+    num_anchor = len(cfg['min_sizes'][0]) # 2
+    backbone_type = cfg['backbone_type'] # ResNet50
 
     # define model
     x = inputs = Input([input_size, input_size, 3], name='input_image')

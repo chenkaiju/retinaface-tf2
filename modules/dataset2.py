@@ -141,37 +141,53 @@ def _transform_data(img_dim, priors, match_thresh, ignore_thresh, variances,
     return transform_data
 
 def load_tfds_dataset(bfm, tfds_name, batch_size, img_dim,
-                          using_bin=True, using_flip=True, using_distort=True,
-                          using_encoding=True, priors=None, match_thresh=0.45,
-                          ignore_thresh=0.3, variances=[0.1, 0.2],
-                          shuffle=False, buffer_size=10240):
+                      using_encoding=True, priors=None, 
+                      match_thresh=0.45, ignore_thresh=0.3, variances=[0.1, 0.2],
+                      shuffle=False, buffer_size=10240):
+    
     """load dataset from tfrecord"""
     if not using_encoding:
         assert batch_size == 1  # dynamic data len when using_encoding
     else:
         assert priors is not None
 
-    split = 0.1
-    raw_dataset = tfds.load(tfds_name, 
+    split = 0.8
+    
+    # train
+    train_dataset = tfds.load(tfds_name, 
                             data_dir=tfds_name,
                             split='train[:{}%]'.format(int(split*100)))
-    # test_dataset = tfds.load(tfds_name, 
-    #                          data_dir=tfds_name,
-    #                          split='train[{}%:]'.format(int(split*100)))
-    train_data_num = raw_dataset.cardinality().numpy()
+    train_data_num = int(train_dataset.cardinality().numpy())
     print("Load training data: {}".format(train_data_num))
     
-    raw_dataset = raw_dataset.repeat()
+    train_dataset = train_dataset.repeat()
     if shuffle:
-        raw_dataset = raw_dataset.shuffle(buffer_size=buffer_size)
-    dataset = raw_dataset.map(
+        train_dataset = train_dataset.shuffle(buffer_size=buffer_size)
+    train_dataset = train_dataset.map(
         _parse_tfds(bfm, img_dim, priors, match_thresh, ignore_thresh, variances),
         num_parallel_calls=tf.data.experimental.AUTOTUNE)
-    dataset = dataset.batch(batch_size, drop_remainder=True)
-    dataset = dataset.prefetch(
+    train_dataset = train_dataset.batch(batch_size, drop_remainder=True)
+    train_dataset = train_dataset.prefetch(
         buffer_size=tf.data.experimental.AUTOTUNE)
+    
+    # val
+    val_dataset = tfds.load(tfds_name, 
+                             data_dir=tfds_name,
+                             split='train[{}%:]'.format(int(split*100)))
+    val_data_num = int(val_dataset.cardinality().numpy())
+    print("Load val data: {}".format(val_data_num))
+    
+    val_dataset = val_dataset.repeat()
+    val_dataset = val_dataset.map(
+        _parse_tfds(bfm, img_dim, priors, match_thresh, ignore_thresh, variances),
+        num_parallel_calls=tf.data.experimental.AUTOTUNE)
+    val_dataset = val_dataset.batch(batch_size, drop_remainder=True)
+    val_dataset = val_dataset.prefetch(
+        buffer_size=tf.data.experimental.AUTOTUNE)
+    # val_dataset = None
+    # val_data_num = None
 
-    return dataset
+    return (train_dataset, train_data_num), (val_dataset, val_data_num)
 
 def unpack_label(label, priors):
     """_summary_

@@ -9,7 +9,7 @@ from modules.dataset2 import load_tfds_dataset
 FILE_DIR = os.path.dirname(os.path.realpath(__file__))
 
 
-def load_dataset(cfg, priors, shuffle=True, buffer_size=10240):
+def load_dataset(cfg, priors, shuffle=False, buffer_size=10240):
     """load dataset"""
     logging.info("load dataset from {}".format(cfg['dataset_path']))
     
@@ -21,12 +21,9 @@ def load_dataset(cfg, priors, shuffle=True, buffer_size=10240):
         
     dataset = load_tfds_dataset(
         bfm,
-        tfds_name=cfg['dataset_path'],
+        tfds_name=cfg['tfds_name'],
         batch_size=cfg['batch_size'],
         img_dim=cfg['input_size'],
-        using_bin=cfg['using_bin'],
-        using_flip=cfg['using_flip'],
-        using_distort=cfg['using_distort'],
         using_encoding=True,
         priors=priors,
         match_thresh=cfg['match_thresh'],
