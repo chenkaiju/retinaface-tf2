@@ -140,7 +140,8 @@ def _transform_data(img_dim, priors, match_thresh, ignore_thresh, variances,
         return img, labels
     return transform_data
 
-def load_tfds_dataset(bfm, tfds_name, batch_size, img_dim,
+def load_tfds_dataset(bfm, load_train, load_valid, 
+                      tfds_name, batch_size, img_dim,
                       using_encoding=True, priors=None, 
                       match_thresh=0.45, ignore_thresh=0.3, variances=[0.1, 0.2],
                       shuffle=False, buffer_size=10240):
@@ -153,43 +154,49 @@ def load_tfds_dataset(bfm, tfds_name, batch_size, img_dim,
 
     split = 0.8
     
-    # train
-    train_dataset = tfds.load(tfds_name, 
-                            data_dir=tfds_name,
-                            split='train[:{}%]'.format(int(split*100)))
-    train_data_num = int(train_dataset.cardinality().numpy())
-    print("Load training data: {}".format(train_data_num))
+    if load_train:
+        # train
+        train_dataset = tfds.load(tfds_name, 
+                                data_dir=tfds_name,
+                                split='train[:{}%]'.format(int(split*100)))
+        train_data_num = int(train_dataset.cardinality().numpy())
+        print("Load training data: {}".format(train_data_num))
+        
+        train_dataset = train_dataset.repeat()
+        if shuffle:
+            train_dataset = train_dataset.shuffle(buffer_size=buffer_size)
+        train_dataset = train_dataset.map(
+            _parse_tfds(bfm, img_dim, priors, match_thresh, ignore_thresh, variances),
+            num_parallel_calls=tf.data.experimental.AUTOTUNE)
+        train_dataset = train_dataset.batch(batch_size, drop_remainder=True)
+        train_dataset = train_dataset.prefetch(
+            buffer_size=tf.data.experimental.AUTOTUNE)
+    else:
+        train_dataset = None
+        train_data_num = None
     
-    train_dataset = train_dataset.repeat()
-    if shuffle:
-        train_dataset = train_dataset.shuffle(buffer_size=buffer_size)
-    train_dataset = train_dataset.map(
-        _parse_tfds(bfm, img_dim, priors, match_thresh, ignore_thresh, variances),
-        num_parallel_calls=tf.data.experimental.AUTOTUNE)
-    train_dataset = train_dataset.batch(batch_size, drop_remainder=True)
-    train_dataset = train_dataset.prefetch(
-        buffer_size=tf.data.experimental.AUTOTUNE)
-    
-    # val
-    val_dataset = tfds.load(tfds_name, 
-                             data_dir=tfds_name,
-                             split='train[{}%:]'.format(int(split*100)))
-    val_data_num = int(val_dataset.cardinality().numpy())
-    print("Load val data: {}".format(val_data_num))
-    
-    val_dataset = val_dataset.repeat()
-    val_dataset = val_dataset.map(
-        _parse_tfds(bfm, img_dim, priors, match_thresh, ignore_thresh, variances),
-        num_parallel_calls=tf.data.experimental.AUTOTUNE)
-    val_dataset = val_dataset.batch(batch_size, drop_remainder=True)
-    val_dataset = val_dataset.prefetch(
-        buffer_size=tf.data.experimental.AUTOTUNE)
-    # val_dataset = None
-    # val_data_num = None
+    if load_valid:
+        # val
+        val_dataset = tfds.load(tfds_name, 
+                                data_dir=tfds_name,
+                                split='train[{}%:]'.format(int(split*100)))
+        val_data_num = int(val_dataset.cardinality().numpy())
+        print("Load val data: {}".format(val_data_num))
+        
+        val_dataset = val_dataset.repeat()
+        val_dataset = val_dataset.map(
+            _parse_tfds(bfm, img_dim, priors, match_thresh, ignore_thresh, variances),
+            num_parallel_calls=tf.data.experimental.AUTOTUNE)
+        val_dataset = val_dataset.batch(batch_size, drop_remainder=True)
+        val_dataset = val_dataset.prefetch(
+            buffer_size=tf.data.experimental.AUTOTUNE)
+    else:
+        val_dataset = None
+        val_data_num = None
 
     return (train_dataset, train_data_num), (val_dataset, val_data_num)
 
-def unpack_label(label, priors):
+def unpack_label(out, priors):
     """_summary_
 
     Args:
@@ -203,14 +210,14 @@ def unpack_label(label, priors):
         valid (tensor): [n, 1]
         conf (tensor): [n, 1]
     """
-    decode_preds = decode_tf(label, priors)
-    selected_indices = tf.image.non_max_suppression(
-        boxes=decode_preds[:, :4],
-        scores=decode_preds[:, -1],
-        max_output_size=tf.shape(decode_preds)[0],
-        iou_threshold=0.4,
-        score_threshold=0.02)
-    out = tf.gather(decode_preds, selected_indices)
+    # decode_preds = decode_tf(label, priors)
+    # selected_indices = tf.image.non_max_suppression(
+    #     boxes=decode_preds[:, :4],
+    #     scores=decode_preds[:, -1],
+    #     max_output_size=tf.shape(decode_preds)[0],
+    #     iou_threshold=0.4,
+    #     score_threshold=0.02)
+    # out = tf.gather(decode_preds, selected_indices)
     
     faceBox = out[:, :4]
     landmarks = out[:, 4:4+136]
