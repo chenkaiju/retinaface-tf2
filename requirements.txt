@@ -1,4 +1,5 @@
-tensorflow-gpu==2.1.0
+tensorflow-gpu==2.8.0
+tensorflow-datasets
 numpy
 opencv-python
 PyYAML
@@ -6,3 +7,5 @@ tqdm
 Pillow
 Cython
 ipython
+scipy
+matplotlib

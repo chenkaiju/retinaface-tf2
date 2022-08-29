@@ -141,10 +141,9 @@ def _transform_data(img_dim, priors, match_thresh, ignore_thresh, variances,
     return transform_data
 
 def load_tfds_dataset(bfm, load_train, load_valid, 
-                      tfds_name, batch_size, img_dim,
+                      dataset_dir, tfds_name, batch_size, img_dim,
                       using_encoding=True, priors=None, 
-                      match_thresh=0.45, ignore_thresh=0.3, variances=[0.1, 0.2],
-                      shuffle=False, buffer_size=10240):
+                      match_thresh=0.45, ignore_thresh=0.3, variances=[0.1, 0.2]):
     
     """load dataset from tfrecord"""
     if not using_encoding:
@@ -157,14 +156,14 @@ def load_tfds_dataset(bfm, load_train, load_valid,
     if load_train:
         # train
         train_dataset = tfds.load(tfds_name, 
-                                data_dir=tfds_name,
+                                data_dir=dataset_dir,
                                 split='train[:{}%]'.format(int(split*100)))
         train_data_num = int(train_dataset.cardinality().numpy())
         print("Load training data: {}".format(train_data_num))
         
         train_dataset = train_dataset.repeat()
-        if shuffle:
-            train_dataset = train_dataset.shuffle(buffer_size=buffer_size)
+        # if shuffle:
+        #     train_dataset = train_dataset.shuffle(buffer_size=buffer_size)
         train_dataset = train_dataset.map(
             _parse_tfds(bfm, img_dim, priors, match_thresh, ignore_thresh, variances),
             num_parallel_calls=tf.data.experimental.AUTOTUNE)
