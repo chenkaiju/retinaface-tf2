@@ -365,9 +365,9 @@ def _resize(img, labels, img_dim):
 
 
 def _distort(img):
-    img = tf.image.random_brightness(img, 0.4)
-    img = tf.image.random_contrast(img, 0.5, 1.5)
-    img = tf.image.random_saturation(img, 0.5, 1.5)
-    img = tf.image.random_hue(img, 0.1)
+    img = tf.clip_by_value(tf.image.random_brightness(img, 0.4), 0, 255)
+    img = tf.clip_by_value(tf.image.random_contrast(img, 0.5, 1.5), 0, 255)
+    img = tf.clip_by_value(tf.image.random_saturation(img, 0.5, 1.5), 0, 255)
+    img = tf.clip_by_value(tf.image.random_hue(img, 0.1), 0, 255)
 
     return img
