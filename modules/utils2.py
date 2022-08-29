@@ -9,10 +9,9 @@ from modules.dataset2 import load_tfds_dataset
 FILE_DIR = os.path.dirname(os.path.realpath(__file__))
 
 
-def load_dataset(cfg, priors, load_train=True, load_valid=False, 
-                 shuffle=False, buffer_size=10240):
+def load_dataset(cfg, priors, load_train=True, load_valid=False):
     """load dataset"""
-    logging.info("load dataset from {}".format(cfg['dataset_path']))
+    logging.info("load dataset from {}".format(cfg['tfds_name']))
     
     bfm = BFMModel(
         bfm_fp=os.path.join("bfm", "bfm_noneck_v3.pkl"),
@@ -24,6 +23,7 @@ def load_dataset(cfg, priors, load_train=True, load_valid=False,
         bfm,
         load_train=load_train,
         load_valid=load_valid,
+        dataset_dir=cfg['dataset_dir'],
         tfds_name=cfg['tfds_name'],
         batch_size=cfg['batch_size'],
         img_dim=cfg['input_size'],
@@ -31,9 +31,7 @@ def load_dataset(cfg, priors, load_train=True, load_valid=False,
         priors=priors,
         match_thresh=cfg['match_thresh'],
         ignore_thresh=cfg['ignore_thresh'],
-        variances=cfg['variances'],
-        shuffle=shuffle,
-        buffer_size=buffer_size)
+        variances=cfg['variances'])
     
     return dataset
 

@@ -2,7 +2,7 @@ import tensorflow as tf
 from tensorflow.keras import Model
 from tensorflow.keras.applications import MobileNetV2, ResNet50
 from tensorflow.keras.layers import Input, Conv2D, ReLU, LeakyReLU
-from modules.anchor import decode_tf, prior_box_tf
+from modules.anchor2 import decode_tf, prior_box_tf
 
 
 def _regularizer(weights_decay):
@@ -205,7 +205,7 @@ class ClassHead(tf.keras.layers.Layer):
 def RetinaFaceModel(cfg, training=False, iou_th=0.4, score_th=0.02,
                     name='RetinaFaceModel'):
     """Retina Face Model"""
-    input_size = cfg['input_size'] if training else None # 450
+    input_size = cfg['input_size']# if training else None # 450
     wd = cfg['weights_decay'] # 5e-4
     out_ch = cfg['out_channel'] # 256
     num_anchor = len(cfg['min_sizes'][0]) # 2
@@ -238,9 +238,18 @@ def RetinaFaceModel(cfg, training=False, iou_th=0.4, score_th=0.02,
     else:
         # only for batch size 1
         preds = tf.concat(  # [bboxes, landms, landms_valid, conf]
-            [bbox_regressions[0], landm_regressions[0],
+            [bbox_regressions[0], landm_regressions[0]], 1)
+        
+        for i in range(62):
+            preds = tf.concat(
+                [preds,
+                 tf.ones_like(classifications[0, :, 0][..., tf.newaxis])], 1)
+        
+        preds = tf.concat(
+            [preds,
              tf.ones_like(classifications[0, :, 0][..., tf.newaxis]),
              classifications[0, :, 1][..., tf.newaxis]], 1)
+        
         priors = prior_box_tf((tf.shape(inputs)[1], tf.shape(inputs)[2]),
                               cfg['min_sizes'],  cfg['steps'], cfg['clip'])
         decode_preds = decode_tf(preds, priors, cfg['variances'])

@@ -2,7 +2,6 @@ from absl import app, flags, logging
 from absl.flags import FLAGS
 import os
 import tensorflow as tf
-import tensorflow_datasets as tfds
 
 from modules.utils import (set_memory_growth, load_yaml, ProgressBar)
 from modules.utils2 import load_dataset
@@ -10,11 +9,10 @@ from modules.models import RetinaFaceModel
 from modules.anchor import prior_box
 from modules.lr_scheduler import MultiStepWarmUpLR
 from modules.losses2 import MultiBoxLoss
-from modules.dataset2 import load_tfds_dataset
 from bfm.bfm import BFMModel
 
 flags.DEFINE_string('cfg_path', './configs/retinaface_res50.yaml',
-                    'config file path')
+                    'config file path') # retinaface_res50 retinaface_mbv2
 flags.DEFINE_string('gpu', '0', 
                     'which gpu to use')
 

@@ -4,6 +4,7 @@ import tensorflow_datasets as tfds
 import tensorflow as tf
 import math
 import numpy as np
+import cv2
 
 # TODO(the300wlp_tfds): Markdown description  that will appear on the catalog page.
 _DESCRIPTION = """
@@ -17,6 +18,8 @@ It should also contain any processing which has been applied (if any),
 _CITATION = """
 """
 
+ORI_IMG_DIM = 450
+NEW_IMG_DIM = 640
 
 class The300wlpTfds(tfds.core.GeneratorBasedBuilder):
   """DatasetBuilder for the300wlp_tfds dataset."""
@@ -34,7 +37,7 @@ class The300wlpTfds(tfds.core.GeneratorBasedBuilder):
         description=_DESCRIPTION,
         features=tfds.features.FeaturesDict({
             # These are the features of your dataset like images, labels ...
-            'image': tfds.features.Image(shape=(450, 450, 3)),
+            'image': tfds.features.Image(shape=(NEW_IMG_DIM, NEW_IMG_DIM, 3)),
             'param': tfds.features.Tensor(shape=(62,), dtype=tf.float64),
         }),
         # If there's a common (input, target) tuple from the
@@ -63,14 +66,15 @@ class The300wlpTfds(tfds.core.GeneratorBasedBuilder):
     # TODO(the300wlp_tfds): Yields (key, example) tuples from the dataset
         
     for i, (sample) in enumerate(dataset):
-      
       img = sample['image'].numpy()
+      img = cv2.resize(img, (NEW_IMG_DIM, NEW_IMG_DIM), interpolation=cv2.INTER_AREA)
       pose_params = sample['pose_params'].numpy()
       
       shape_params = sample['shape_params'].numpy()
       exp_params = sample['exp_params'].numpy()
       
-      param = EncodeParams(pose_params, shape_params, exp_params)
+      resizeScale = NEW_IMG_DIM / ORI_IMG_DIM
+      param = EncodeParams(pose_params, shape_params, exp_params, resizeScale)
       
       yield i, {
           'image': img,
@@ -100,16 +104,16 @@ def RPYToRotationMatrix(phi, gamma, theta): # pitch, yaw, roll
 
     return R
 
-def EncodeParams(pose_params, shape_params, exp_params):
+def EncodeParams(pose_params, shape_params, exp_params, resizeScale):
     # [rotations(3, 3), translation(3,), shape_params(40,), exp_params(10,)]: 62
     pitch = pose_params[0]
     yaw = pose_params[1]
     roll = pose_params[2]
     
     scale = pose_params[6]
-    rotation = RPYToRotationMatrix(pitch, yaw, roll) * scale
+    rotation = RPYToRotationMatrix(pitch, yaw, roll) * scale * resizeScale
     
-    translation = np.array([pose_params[3], pose_params[4], pose_params[5]])
+    translation = np.array([pose_params[3], pose_params[4], pose_params[5]]) * resizeScale
     
     shape = shape_params[:40]
     exp = exp_params[:10]

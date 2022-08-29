@@ -2,17 +2,21 @@ from absl import app, flags
 from absl.flags import FLAGS
 import tensorflow as tf
 import os
+import cv2
 
 from modules.models import RetinaFaceModel
 from modules.dataset2 import unpack_label
 from modules.anchor2 import prior_box
 from modules.utils import set_memory_growth, load_yaml
-from modules.utils2 import load_dataset, draw_landmarks
+from modules.utils2 import draw_landmarks
 
 FILE_DIR = os.path.dirname(os.path.realpath(__file__))
 
+
+flags.DEFINE_string('input_path', "./photo/angela1.jpg",
+                    'input image path')
 flags.DEFINE_string('cfg_path', './configs/retinaface_res50.yaml',
-                    'config file path') # retinaface_res50 retinaface_mbv2
+                    'config file path')
 flags.DEFINE_string('gpu', '0', 
                     'which gpu to use')
 flags.DEFINE_float('iou_th', 0.4, 'iou threshold for nms')
@@ -27,7 +31,6 @@ def main(_):
     cfg = load_yaml(FLAGS.cfg_path)
 
     img_dim = cfg['input_size']
-    numBatchToTake = 5
     
     # define prior box
     priors = prior_box((img_dim, img_dim),
@@ -50,30 +53,29 @@ def main(_):
     
     resultDir = os.path.join(FILE_DIR, "result")
     
-    (_, _), (val_dataset, val_data_num) = load_dataset(cfg, priors, 
-                                                       load_train=False, load_valid=True)
+    input_fn = FLAGS.input_path.split("/")[-1]
+    image = cv2.imread(FLAGS.input_path)
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    image = cv2.resize(image, (img_dim, img_dim))
+
+    image = tf.convert_to_tensor(image)
+
+    output = model(tf.cast(image[tf.newaxis, ...], tf.float32))
     
-    for i, (inputs, labels) in enumerate(val_dataset.take(numBatchToTake)):
-        
-        
-        for j, (image, label) in enumerate(zip(inputs, labels)):
-            
-            output = model(image[tf.newaxis, ...])
-            
-            image = tf.clip_by_value(image, 0, 255)
-            image = tf.cast(image, tf.uint8)
-            
-            faceBox, landmarks, _, _, _ = unpack_label(output, priors)
-            
-            if not os.path.exists(resultDir):
-                os.mkdir(resultDir)
-            
-            outputPath = os.path.join(resultDir, "{}_{}.jpg".format(i, j))
-            
-            draw_landmarks(image.numpy(), landmarks.numpy(), faceBox.numpy(), 
-                           img_dim, outputPath)
-            
-            print("Done drawing {}".format(outputPath))
+    image = tf.clip_by_value(image, 0, 255)
+    image = tf.cast(image, tf.uint8)
+    
+    faceBox, landmarks, _, _, _ = unpack_label(output, priors)
+    
+    if not os.path.exists(resultDir):
+        os.mkdir(resultDir)
+    
+    outputPath = os.path.join(resultDir, input_fn)
+    
+    draw_landmarks(image.numpy(), landmarks.numpy(), faceBox.numpy(), 
+                    img_dim, outputPath)
+    
+    print("Done drawing {}".format(outputPath))
             
 
     return
