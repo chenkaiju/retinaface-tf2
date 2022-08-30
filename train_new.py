@@ -30,7 +30,10 @@ def main(_):
     cfg = load_yaml(FLAGS.cfg_path)
     
     # define network
-    model = RetinaFaceModel(cfg, training=True)
+    model = RetinaFaceModel(cfg)
+    
+    inputs = tf.keras.Input([cfg['input_size'], cfg['input_size'], 3], name='input_image')
+    model.build((None, 450, 450, 3))
     model.summary()
     
     # define prior box

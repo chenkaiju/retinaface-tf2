@@ -4,8 +4,10 @@ logs/*
 **/__pycache__/*
 **/*.tfrecord
 **/*.zip
-data/*/**/*.png
-data/*/**/*.jpg
+data/**/*
 data/widerface/**/*.txt
 widerface_evaluate/*
-results/*
+result/*
+faces/*
+checkpoints/*
+the300wlp_tfds
