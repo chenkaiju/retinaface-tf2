@@ -175,7 +175,19 @@ class BboxHead(tf.keras.layers.Layer):
 
         return tf.reshape(x, [-1, h * w * self.num_anchor, self.length])
 
-
+class ParamHead(tf.keras.layers.Layer):
+    """Param Head Layer"""
+    def __init__(self, num_anchor, wd, name='ParamHead', paramNum=62, **kwargs):
+        super(ParamHead, self).__init__(name=name, **kwargs)
+        self.length = paramNum
+        self.num_anchor = num_anchor
+        self.conv = Conv2D(filters=num_anchor * self.length, kernel_size=1, strides=1)
+        
+    def call(self, x):
+        h, w = tf.shape(x)[1], tf.shape(x)[2]
+        x = self.conv(x)
+        return tf.reshape(x, [-1, h * w * self.num_anchor, self.length])  
+    
 class LandmarkHead(tf.keras.layers.Layer):
     """Landmark Head Layer"""
     def __init__(self, num_anchor, wd, name='LandmarkHead', pointNum=68, **kwargs):
@@ -232,6 +244,8 @@ class RetinaFaceModel(tf.keras.Model):
         
         self.box_heads = [BboxHead(num_anchor, wd=wd, name=f'BboxHead_{i}') for i in range(3)]
         
+        self.param_heads = [ParamHead(num_anchor, wd=wd, name=f'ParamHead_{i}') for i in range(3)]
+        
         self.landm_heads = [LandmarkHead(num_anchor, wd=wd, name=f'LandmarkHead_{i}') for i in range(3)]
         
         self.class_head = [ClassHead(num_anchor, wd=wd, name=f'ClassHead_{i}') for i in range(3)]
@@ -251,6 +265,10 @@ class RetinaFaceModel(tf.keras.Model):
             [self.box_heads[0](ssh1), self.box_heads[1](ssh2), self.box_heads[2](ssh3)], axis=1
         )
         
+        param_regressions = tf.concat(
+            [self.param_heads[0](ssh1), self.param_heads[1](ssh2), self.param_heads[2](ssh3)], axis=1
+        )
+        
         landm_regressions = tf.concat(
             [self.landm_heads[0](ssh1), self.landm_heads[1](ssh2), self.landm_heads[2](ssh3)], axis=1
         )
@@ -262,22 +280,16 @@ class RetinaFaceModel(tf.keras.Model):
         classifications = tf.keras.layers.Softmax(axis=-1)(classifications)
 
         if training:
-            out = (bbox_regressions, landm_regressions, classifications)
+            out = (bbox_regressions, landm_regressions, param_regressions, classifications)
             
         else:
             # only for batch size 1
             preds = tf.concat(  # [bboxes, landms, landms_valid, conf]
-                [bbox_regressions[0], landm_regressions[0]], axis=1)
-            
-            for i in range(62):
-                preds = tf.concat(
-                    [preds,
-                    tf.ones_like(classifications[0, :, 0][..., tf.newaxis])], 1)
-            
-            preds = tf.concat(
-                [preds,
-                tf.ones_like(classifications[0, :, 0][..., tf.newaxis]),
-                classifications[0, :, 1][..., tf.newaxis]], axis=1)
+                [bbox_regressions[0], 
+                 landm_regressions[0], 
+                 param_regressions[0],
+                 tf.ones_like(classifications[0, :, 0][..., tf.newaxis]),
+                 classifications[0, :, 1][..., tf.newaxis]], axis=1)
             
             priors = prior_box_tf((tf.shape(inputs)[1], tf.shape(inputs)[2]),
                                 self.cfg['min_sizes'],  self.cfg['steps'], self.cfg['clip'])

@@ -90,7 +90,7 @@ def main(_):
             
             losses = {}
             losses['reg'] = tf.reduce_sum(model.losses)
-            losses['loc'], losses['landm'], losses['class'] = \
+            losses['loc'], losses['landm'], losses['param'], losses['class'] = \
                 multi_box_loss(labels, predictions)
             total_loss = tf.add_n([l for l in losses.values()])
         
@@ -135,6 +135,7 @@ def main(_):
                 tf.summary.scalar(
                     'learning_rate', optimizer.lr(steps), step=steps
                 )
+                
         if steps % cfg['save_steps'] == 0:
             manager.save()
             print("[*] save ckpt file at {}".format(

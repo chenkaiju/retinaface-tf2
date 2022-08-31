@@ -14,9 +14,13 @@ def MultiBoxLoss(num_class=2, neg_pos_ratio=3):
 
         loc_pred = tf.reshape(y_pred[0], [num_batch * num_prior, 4])
         landm_pred = tf.reshape(y_pred[1], [num_batch * num_prior, 136])
-        class_pred = tf.reshape(y_pred[2], [num_batch * num_prior, num_class])
+        param_pred = tf.reshape(y_pred[2], [num_batch * num_prior, 62])
+        class_pred = tf.reshape(y_pred[3], [num_batch * num_prior, num_class])
+
+        
         loc_true = tf.reshape(y_true[..., :4], [num_batch * num_prior, 4])
         landm_true = tf.reshape(y_true[..., 4:4+136], [num_batch * num_prior, 136])
+        param_true = tf.reshape(y_true[..., 4+136:4+136+62], [num_batch * num_prior, 62])
         landm_valid = tf.reshape(y_true[..., -2], [num_batch * num_prior, 1])
         class_true = tf.reshape(y_true[..., -1], [num_batch * num_prior, 1])
 
@@ -31,6 +35,13 @@ def MultiBoxLoss(num_class=2, neg_pos_ratio=3):
         loss_landm = _smooth_l1_loss(tf.boolean_mask(landm_true, mask_landm_b),
                                      tf.boolean_mask(landm_pred, mask_landm_b))
         loss_landm = tf.reduce_mean(loss_landm)
+        
+        # param loss
+        mask_param_b = tf.broadcast_to(mask_landm, tf.shape(param_true))
+        loss_param = _smooth_l1_loss(tf.boolean_mask(param_true, mask_param_b),
+                                     tf.boolean_mask(param_pred, mask_param_b))
+        loss_param = tf.reduce_mean(loss_param)
+        
 
         # localization loss (smooth L1)
         mask_pos_b = tf.broadcast_to(mask_pos, tf.shape(loc_true))
@@ -69,6 +80,6 @@ def MultiBoxLoss(num_class=2, neg_pos_ratio=3):
             y_true=filter_class_true, y_pred=filter_class_pred)
         loss_class = tf.reduce_mean(loss_class)
 
-        return loss_loc, loss_landm, loss_class
+        return loss_loc, loss_landm, loss_param, loss_class
 
     return multi_box_loss
