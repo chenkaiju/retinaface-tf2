@@ -1,0 +1,69 @@
+Model: "RetinaFaceModel"
+__________________________________________________________________________________________________
+ Layer (type)                   Output Shape         Param #     Connected to                     
+==================================================================================================
+ input_image (InputLayer)       [(None, 450, 450, 3  0           []                               
+                                )]                                                                
+                                                                                                  
+ tf.math.truediv_16 (TFOpLambda  (None, 450, 450, 3)  0          ['input_image[0][0]']            
+ )                                                                                                
+                                                                                                  
+ tf.math.subtract_2 (TFOpLambda  (None, 450, 450, 3)  0          ['tf.math.truediv_16[0][0]']     
+ )                                                                                                
+                                                                                                  
+ MobileNetV2_extrator (Function  ((None, 57, 57, 192  1518464    ['tf.math.subtract_2[0][0]']     
+ al)                            ),                                                                
+                                 (None, 29, 29, 576                                               
+                                ),                                                                
+                                 (None, 15, 15, 960                                               
+                                ))                                                                
+                                                                                                  
+ FPN (FPN)                      ((None, 57, 57, 64)  185600      ['MobileNetV2_extrator[0][0]',   
+                                , (None, 29, 29, 64               'MobileNetV2_extrator[0][1]',   
+                                ),                                'MobileNetV2_extrator[0][2]']   
+                                 (None, 15, 15, 64)                                               
+                                )                                                                 
+                                                                                                  
+ SSH_0 (SSH)                    (None, 57, 57, 64)   34944       ['FPN[0][0]']                    
+                                                                                                  
+ SSH_1 (SSH)                    (None, 29, 29, 64)   34944       ['FPN[0][1]']                    
+                                                                                                  
+ SSH_2 (SSH)                    (None, 15, 15, 64)   34944       ['FPN[0][2]']                    
+                                                                                                  
+ ClassHead_0 (ClassHead)        (None, 6498, 2)      260         ['SSH_0[0][0]']                  
+                                                                                                  
+ ClassHead_1 (ClassHead)        (None, 1682, 2)      260         ['SSH_1[0][0]']                  
+                                                                                                  
+ ClassHead_2 (ClassHead)        (None, 450, 2)       260         ['SSH_2[0][0]']                  
+                                                                                                  
+ BboxHead_0 (BboxHead)          (None, 6498, 4)      520         ['SSH_0[0][0]']                  
+                                                                                                  
+ BboxHead_1 (BboxHead)          (None, 1682, 4)      520         ['SSH_1[0][0]']                  
+                                                                                                  
+ BboxHead_2 (BboxHead)          (None, 450, 4)       520         ['SSH_2[0][0]']                  
+                                                                                                  
+ LandmarkHead_0 (LandmarkHead)  (None, 6498, 136)    17680       ['SSH_0[0][0]']                  
+                                                                                                  
+ LandmarkHead_1 (LandmarkHead)  (None, 1682, 136)    17680       ['SSH_1[0][0]']                  
+                                                                                                  
+ LandmarkHead_2 (LandmarkHead)  (None, 450, 136)     17680       ['SSH_2[0][0]']                  
+                                                                                                  
+ tf.concat_76 (TFOpLambda)      (None, 8630, 2)      0           ['ClassHead_0[0][0]',            
+                                                                  'ClassHead_1[0][0]',            
+                                                                  'ClassHead_2[0][0]']            
+                                                                                                  
+ tf.concat_74 (TFOpLambda)      (None, 8630, 4)      0           ['BboxHead_0[0][0]',             
+                                                                  'BboxHead_1[0][0]',             
+                                                                  'BboxHead_2[0][0]']             
+                                                                                                  
+ tf.concat_75 (TFOpLambda)      (None, 8630, 136)    0           ['LandmarkHead_0[0][0]',         
+                                                                  'LandmarkHead_1[0][0]',         
+                                                                  'LandmarkHead_2[0][0]']         
+                                                                                                  
+ softmax_1 (Softmax)            (None, 8630, 2)      0           ['tf.concat_76[0][0]']           
+                                                                                                  
+==================================================================================================
+Total params: 1,864,276
+Trainable params: 1,835,988
+Non-trainable params: 28,288
+__________________________________________________________________________________________________

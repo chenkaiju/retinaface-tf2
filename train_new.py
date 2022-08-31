@@ -32,15 +32,17 @@ def main(_):
     # define network
     model = RetinaFaceModel(cfg)
     
-    inputs = tf.keras.Input([cfg['input_size'], cfg['input_size'], 3], name='input_image')
-    model.build((None, 450, 450, 3))
-    model.summary()
     
     # define prior box
     priors = prior_box((cfg['input_size'], cfg['input_size']),
                        cfg['min_sizes'], cfg['steps'], cfg['clip'])
     
     (train_dataset, train_num), (_, _) = load_dataset(cfg, priors)
+    
+    data1 = train_dataset.take(1)
+    for input, label in data1:
+        pred = model(input)
+    model.summary()
     
     # define optimizer
     steps_per_epoch = train_num // cfg['batch_size']
