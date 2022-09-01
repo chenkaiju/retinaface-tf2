@@ -3,6 +3,7 @@ from absl.flags import FLAGS
 import tensorflow as tf
 import os
 import cv2
+import numpy as np
 
 from modules.models import RetinaFaceModel
 from modules.dataset2 import unpack_label
@@ -13,7 +14,7 @@ from modules.utils2 import draw_landmarks
 FILE_DIR = os.path.dirname(os.path.realpath(__file__))
 
 
-flags.DEFINE_string('input_path', "./photo/angela1.jpg",
+flags.DEFINE_string('input_path', "./photo/faces.jpg",
                     'input image path')
 flags.DEFINE_string('cfg_path', './configs/retinaface_res50.yaml',
                     'config file path')
@@ -66,7 +67,7 @@ def main(_):
     image = tf.cast(image, tf.uint8)
     
     faceBox, landmarks, _, _, _ = unpack_label(output, priors)
-    
+
     if not os.path.exists(resultDir):
         os.mkdir(resultDir)
     

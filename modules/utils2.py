@@ -59,10 +59,8 @@ def draw_landmarks(image, pts, facebox, img_dim, outputPath):
     plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
     plt.axis('off')
 
-    if not type(pts) in [tuple, list]:
-        pts = [pts]
-    
-    for i in range(len(pts)):
+    num_faces = facebox.shape[0]
+    for i in range(num_faces):
         alpha = 0.8
         markersize = 1.5
         lw = 0.7 
@@ -87,10 +85,10 @@ def draw_landmarks(image, pts, facebox, img_dim, outputPath):
                         color=color,
                         markeredgecolor=markeredgecolor, alpha=alpha)
     
-    x1, y1, x2, y2 = facebox        
-    xs = [x1, x2, x2, x1, x1]
-    ys = [y1, y1, y2, y2, y1]        
-    plt.plot(xs, ys, color='red', lw=lw, alpha=alpha - 0.1)
+        x1, y1, x2, y2 = facebox[i]     
+        xs = [x1, x2, x2, x1, x1]
+        ys = [y1, y1, y2, y2, y1]        
+        plt.plot(xs, ys, color='red', lw=lw, alpha=alpha - 0.1)
     
     plt.savefig(outputPath, dpi=my_dpi*display_scale)
     #print('Save landmark result to {}'.format(wfp))
