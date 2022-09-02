@@ -255,10 +255,9 @@ def decode_tf(labels, priors, variances=[0.1, 0.2]):
     bbox = _decode_bbox(labels[:, :4], priors, variances)
     landm = _decode_landm(labels[:, 4:4+136], priors, variances)
     param = labels[:, 4+136:4+136+62]
-    landm_valid = labels[:, -2][:, tf.newaxis]
     conf = labels[:, -1][:, tf.newaxis]
 
-    return tf.concat([bbox, landm, param, landm_valid, conf], axis=1)
+    return tf.concat([bbox, landm, param, conf], axis=-1)
 
 
 def _decode_bbox(pre, priors, variances=[0.1, 0.2]):

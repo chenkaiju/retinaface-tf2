@@ -177,7 +177,7 @@ def load_tfds_dataset(bfm, load_train, load_valid,
     if load_valid:
         # val
         val_dataset = tfds.load(tfds_name, 
-                                data_dir=tfds_name,
+                                data_dir=dataset_dir,
                                 split='train[{}%:]'.format(int(split*100)))
         val_data_num = int(val_dataset.cardinality().numpy())
         print("Load val data: {}".format(val_data_num))
@@ -220,16 +220,15 @@ def unpack_label(out, priors):
     
     faceBox = out[:, :4]
     landmarks = out[:, 4:4+136]
-    landmarks = tf.transpose(tf.reshape(landmarks, (landmarks.shape[0], 68, 2)))
+    landmarks = tf.transpose(tf.reshape(landmarks, (landmarks.shape[0], 68, 2)), perm=[0, 2, 1])
     
     param = out[:, 4+136: 4+136+62]
     
-    valid = out[:, -2]
+    #valid = out[:, -2]
     
     conf = out[:, -1]
     
-    return tf.squeeze(faceBox), tf.squeeze(landmarks), \
-           tf.squeeze(param), tf.squeeze(valid), tf.squeeze(conf)
+    return faceBox, landmarks, param, conf
 
 
 ###############################################################################

@@ -5,9 +5,10 @@ import os
 
 from modules.models import RetinaFaceModel
 from modules.dataset2 import unpack_label
-from modules.anchor2 import prior_box
+from modules.anchor2 import prior_box, decode_tf
 from modules.utils import set_memory_growth, load_yaml
-from modules.utils2 import load_dataset, draw_landmarks
+from modules.utils2 import load_dataset, draw_result
+
 
 FILE_DIR = os.path.dirname(os.path.realpath(__file__))
 
@@ -34,14 +35,13 @@ def main(_):
                        cfg['min_sizes'], cfg['steps'], cfg['clip'])
     
     # define network
-    model = RetinaFaceModel(cfg, training=False, 
-                            iou_th=FLAGS.iou_th, score_th=FLAGS.score_th)
+    model = RetinaFaceModel(cfg, iou_th=FLAGS.iou_th, score_th=FLAGS.score_th)
     
     # load checkpoint
     checkpoint_dir = "./checkpoints/" + cfg['sub_name']
     checkpoint = tf.train.Checkpoint(model=model)
     if tf.train.latest_checkpoint(checkpoint_dir):
-        checkpoint.restore(tf.train.latest_checkpoint(checkpoint_dir))
+        checkpoint.restore(tf.train.latest_checkpoint(checkpoint_dir)).expect_partial()
         print("[*] load ckpt from {}.".format(
             tf.train.latest_checkpoint(checkpoint_dir)))
     else:
@@ -53,27 +53,40 @@ def main(_):
     (_, _), (val_dataset, val_data_num) = load_dataset(cfg, priors, 
                                                        load_train=False, load_valid=True)
     
+    if not os.path.exists(resultDir):
+        os.mkdir(resultDir)
+    
     for i, (inputs, labels) in enumerate(val_dataset.take(numBatchToTake)):
-        
-        
-        for j, (image, label) in enumerate(zip(inputs, labels)):
-            
-            output = model(image[tf.newaxis, ...])
-            
-            image = tf.clip_by_value(image, 0, 255)
-            image = tf.cast(image, tf.uint8)
-            
-            faceBox, landmarks, _, _, _ = unpack_label(output, priors)
-            
+  
+            output = model(inputs)
             if not os.path.exists(resultDir):
                 os.mkdir(resultDir)
+                
+            img = tf.cast(inputs, tf.uint8)
+            for idx in range(len(output)):
+                      
+                faceBox, landmarks, _, _ = unpack_label(output[idx], priors)
+                
+                
+                decode_gt = decode_tf(labels[idx], priors, cfg['variances'])
+                selected_indices = tf.image.non_max_suppression(
+                    boxes=decode_gt[:, :4],
+                    scores=decode_gt[:, -1],
+                    max_output_size=tf.shape(decode_gt)[0],
+                    iou_threshold=FLAGS.iou_th,
+                    score_threshold=FLAGS.score_th)
+                
+                out_gt = tf.gather(decode_gt, selected_indices)
+                
+                faceBoxGT, landmarksGT, _, _ = unpack_label(out_gt, priors)
+
+                outputPath = os.path.join(resultDir, "{}_{}.jpg".format(i, idx))
+
+                org_img = img[idx].numpy()
+                org_img = draw_result(org_img, landmarks.numpy(), faceBox.numpy(), outputPath, color=(255,255,0))
+                org_img = draw_result(org_img, landmarksGT.numpy(), faceBoxGT.numpy(), outputPath, color=(0,255,0))
             
-            outputPath = os.path.join(resultDir, "{}_{}.jpg".format(i, j))
-            
-            draw_landmarks(image.numpy(), landmarks.numpy(), faceBox.numpy(), 
-                           img_dim, outputPath)
-            
-            print("Done drawing {}".format(outputPath))
+                print("Done drawing {}".format(outputPath))
             
 
     return

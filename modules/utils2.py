@@ -1,5 +1,6 @@
 import os
 import cv2
+import numpy as np
 import matplotlib.pyplot as plt
 from absl import logging
 
@@ -38,60 +39,67 @@ def load_dataset(cfg, priors, load_train=True, load_valid=False):
 
 ###############################################################################
 #   Visulization                                                              #
-###############################################################################
-def draw_landmarks(image, pts, facebox, img_dim, outputPath):
+############################################################################### 
+def draw_result(image, pts, facebox, outputPath=None, color=(0,255,0)):
 
     """
         image: uint8
         pts: float32 (2, 68) -> range[0, 1]
         facebox: float32 (4,) -> range[0, 1]
+        color: RGB order
     """
-    pts = pts * img_dim
-    facebox = facebox * img_dim
-    image = cv2.resize(image, (img_dim, img_dim), interpolation=cv2.INTER_AREA)
     
-    img = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-    my_dpi = 100
-    display_scale = 1 # suggested
+    
+    img = image
+
     height, width = img.shape[:2]
-    figure = plt.figure(figsize=(width / my_dpi, height / my_dpi))
-    plt.imshow(img[:, :, ::-1])
-    plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
-    plt.axis('off')
-
-    if not type(pts) in [tuple, list]:
-        pts = [pts]
     
-    for i in range(len(pts)):
-        alpha = 0.8
-        markersize = 1.5
-        lw = 0.7 
-        color = 'g'
-        markeredgecolor = 'green'
-
-        nums = [0, 17, 22, 27, 31, 36, 42, 48, 60, 68]
-
-        # close eyes and mouths
-        plot_close = lambda i1, i2: plt.plot([pts[i][0, i1], pts[i][0, i2]], [pts[i][1, i1], pts[i][1, i2]],
-                                                color=color, lw=lw, alpha=alpha - 0.1)
-        plot_close(41, 36)
-        plot_close(47, 42)
-        plot_close(59, 48)
-        plot_close(67, 60)
-
-        for ind in range(len(nums) - 1):
-            l, r = nums[ind], nums[ind + 1]
-            plt.plot(pts[i][0, l:r], pts[i][1, l:r], color=color, lw=lw, alpha=alpha - 0.1)
-
-            plt.plot(pts[i][0, l:r], pts[i][1, l:r], marker='o', linestyle='None', markersize=markersize,
-                        color=color,
-                        markeredgecolor=markeredgecolor, alpha=alpha)
+    pts = (pts * height).astype(np.int64)
+    facebox = (facebox * height).astype(np.int64)
     
-    x1, y1, x2, y2 = facebox        
-    xs = [x1, x2, x2, x1, x1]
-    ys = [y1, y1, y2, y2, y1]        
-    plt.plot(xs, ys, color='red', lw=lw, alpha=alpha - 0.1)
+    num_face = facebox.shape[0]
     
-    plt.savefig(outputPath, dpi=my_dpi*display_scale)
-    #print('Save landmark result to {}'.format(wfp))
-    plt.close()
+    if num_face>0:
+        for i in range(1):
+            alpha = 0.8
+            markersize = 2
+            lw = 1 
+            color = color
+            box_color = tuple(int(c*0.8) for c in color)
+
+            nums = [0, 17, 22, 27, 31, 36, 42, 48, 60, 68]
+
+
+            for idx in range(68):
+                img = cv2.drawMarker(img, (pts[i][0, idx], pts[i][1, idx]), color=color, thickness=lw, 
+                                     markerType=cv2.MARKER_DIAMOND, markerSize=5)
+            
+            # close eyes and mouths
+            def plot_close(img, i1, i2):
+                
+                img = cv2.line(img, (pts[i][0, i1], pts[i][1, i1]), (pts[i][0, i2], pts[i][1, i2]), color=color, thickness=lw)
+                return img
+            
+            img = plot_close(img, 41, 36)
+            img = plot_close(img, 47, 42)
+            img = plot_close(img, 59, 48)
+            img = plot_close(img, 67, 60)
+
+            for ind in range(len(nums) - 1):
+                l, r = nums[ind], nums[ind + 1]
+                points = np.transpose(pts[i][:,l:r])
+                points = points.reshape((-1, 1, 2))
+                img = cv2.polylines(img, [points], isClosed=False, color=color, thickness=lw)
+
+        
+            x1, y1, x2, y2 = facebox[i]
+            bbox = np.array([(x1,y1), (x2,y1), (x2,y2), (x1,y2), (x1,y1)])
+            img = cv2.drawContours(img, [bbox], 0, box_color, thickness=1)
+
+        
+        if (outputPath != None):
+            img_write = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+            cv2.imwrite(outputPath, img_write)
+        
+    
+    return img

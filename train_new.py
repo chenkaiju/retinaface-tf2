@@ -4,17 +4,21 @@ import os
 import tensorflow as tf
 
 from modules.utils import (set_memory_growth, load_yaml, ProgressBar)
-from modules.utils2 import load_dataset
+from modules.utils2 import load_dataset, draw_result
+from modules.dataset2 import unpack_label
+from modules.anchor2 import decode_tf
 from modules.models import RetinaFaceModel
 from modules.anchor import prior_box
 from modules.lr_scheduler import MultiStepWarmUpLR
 from modules.losses2 import MultiBoxLoss
-from bfm.bfm import BFMModel
 
 flags.DEFINE_string('cfg_path', './configs/retinaface_res50.yaml',
                     'config file path') # retinaface_res50 retinaface_mbv2
 flags.DEFINE_string('gpu', '0', 
                     'which gpu to use')
+
+flags.DEFINE_float('iou_th', 0.4, 'iou threshold for nms')
+flags.DEFINE_float('score_th', 0.5, 'score threshold for nms')
 
 def main(_):
     
@@ -135,6 +139,40 @@ def main(_):
                 tf.summary.scalar(
                     'learning_rate', optimizer.lr(steps), step=steps
                 )
+                
+        
+        if steps % 1000 == 0:
+            
+            with summary_writer.as_default():
+                
+                output = model(inputs, training=False)
+                img = tf.cast(inputs, tf.uint8)
+                res = []
+                for idx in range(len(output)):
+                    
+                    img_viz = img[idx].numpy()
+                    
+                    faceBox, landmarks, _, _ = unpack_label(output[idx], priors)
+                    
+                    img_viz = draw_result(img_viz, landmarks.numpy(), faceBox.numpy(), color=(255,255,0))
+                    
+                    decode_gt = decode_tf(labels[idx], priors, cfg['variances'])
+                    selected_indices = tf.image.non_max_suppression(
+                    boxes=decode_gt[:, :4],
+                    scores=decode_gt[:, -1],
+                    max_output_size=tf.shape(decode_gt)[0],
+                    iou_threshold=FLAGS.iou_th,
+                    score_threshold=FLAGS.score_th)
+                
+                    out_gt = tf.gather(decode_gt, selected_indices)
+                
+                    faceBoxGT, landmarksGT, _, _ = unpack_label(out_gt, priors)
+                    img_viz = draw_result(img_viz, landmarksGT.numpy(), faceBoxGT.numpy(), color=(0,255,0))
+            
+                    res.append(img_viz)
+                    
+                restf = tf.convert_to_tensor(res, dtype=tf.uint8)
+                tf.summary.image('pred/image', restf, step=steps)
                 
         if steps % cfg['save_steps'] == 0:
             manager.save()
