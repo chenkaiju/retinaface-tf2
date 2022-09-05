@@ -8,7 +8,7 @@ from modules.models import RetinaFaceModel
 from modules.dataset2 import unpack_label
 from modules.anchor2 import prior_box
 from modules.utils import set_memory_growth, load_yaml
-from modules.utils2 import draw_landmarks
+from modules.utils2 import draw_result
 
 FILE_DIR = os.path.dirname(os.path.realpath(__file__))
 
@@ -37,14 +37,13 @@ def main(_):
                        cfg['min_sizes'], cfg['steps'], cfg['clip'])
     
     # define network
-    model = RetinaFaceModel(cfg, training=False, 
-                            iou_th=FLAGS.iou_th, score_th=FLAGS.score_th)
+    model = RetinaFaceModel(cfg, iou_th=FLAGS.iou_th, score_th=FLAGS.score_th)
     
     # load checkpoint
     checkpoint_dir = "./checkpoints/" + cfg['sub_name']
     checkpoint = tf.train.Checkpoint(model=model)
     if tf.train.latest_checkpoint(checkpoint_dir):
-        checkpoint.restore(tf.train.latest_checkpoint(checkpoint_dir))
+        checkpoint.restore(tf.train.latest_checkpoint(checkpoint_dir)).expect_partial()
         print("[*] load ckpt from {}.".format(
             tf.train.latest_checkpoint(checkpoint_dir)))
     else:
@@ -60,20 +59,20 @@ def main(_):
 
     image = tf.convert_to_tensor(image)
 
-    output = model(tf.cast(image[tf.newaxis, ...], tf.float32))
+    output = model(tf.cast(image[tf.newaxis, ...], tf.float32), training=False)
     
     image = tf.clip_by_value(image, 0, 255)
     image = tf.cast(image, tf.uint8)
     
-    faceBox, landmarks, _, _, _ = unpack_label(output, priors)
+    
+    faceBox, landmarks, _, _ = unpack_label(output[0], priors)
     
     if not os.path.exists(resultDir):
         os.mkdir(resultDir)
     
     outputPath = os.path.join(resultDir, input_fn)
     
-    draw_landmarks(image.numpy(), landmarks.numpy(), faceBox.numpy(), 
-                    img_dim, outputPath)
+    draw_result(image.numpy(), landmarks.numpy(), faceBox.numpy(), outputPath)
     
     print("Done drawing {}".format(outputPath))
             
