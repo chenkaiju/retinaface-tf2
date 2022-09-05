@@ -37,11 +37,11 @@ def MultiBoxLoss(num_class=2, neg_pos_ratio=3):
         loss_landm = tf.reduce_mean(loss_landm)
         
         # param loss
-        # mask_param_b = tf.broadcast_to(mask_landm, tf.shape(param_true))
-        # loss_param = _smooth_l1_loss(tf.boolean_mask(param_true, mask_param_b),
-        #                              tf.boolean_mask(param_pred, mask_param_b))
-        # loss_param = tf.reduce_mean(loss_param)
-        loss_param = 0.0
+        mask_param_b = tf.broadcast_to(mask_landm, tf.shape(param_true))
+        loss_param = _smooth_l1_loss(tf.boolean_mask(param_true, mask_param_b),
+                                     tf.boolean_mask(param_pred, mask_param_b))
+        loss_param = tf.reduce_mean(loss_param)
+        # loss_param = 0.0
         
 
         # localization loss (smooth L1)

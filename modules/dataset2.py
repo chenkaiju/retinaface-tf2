@@ -1,6 +1,25 @@
 import tensorflow as tf
 import tensorflow_datasets as tfds
 from modules.anchor2 import encode_tf, decode_tf
+import numpy as np
+
+MEAN_PATH = "the300wlp_tfds/mean_62.npy"
+STD_PATH = "the300wlp_tfds/std_62.npy"
+
+def _get_suffix(filename):
+    """ a.jpg -> jpg """
+    pos = filename.rfind('.')
+    if pos == -1:
+        return ''
+    return filename[pos + 1:]
+
+def _load_npy(fp):
+    suffix = _get_suffix(fp)
+    if suffix == 'npy':
+        return np.load(fp)
+    else:
+        print("File not npy format")
+        return False
 
 def DecodeParams(param):
     if len(param) != 62:
@@ -54,7 +73,7 @@ def get_facebox2d(landmark_2d, ratio=0.1):
     return facebox
 
 def _parse_tfds(bfm, img_dim, priors, match_thresh, 
-                ignore_thresh, variances, numFace=1):
+                ignore_thresh, variances, using_distort=True, numFace=1):
     
     def parse_tfds(dataset):
         
@@ -85,7 +104,11 @@ def _parse_tfds(bfm, img_dim, priors, match_thresh,
                     l +=  1
             
             param = tf.cast(param, tf.float32)
-            for p in param:
+            mean_ = _load_npy(MEAN_PATH)
+            std_ = _load_npy(STD_PATH)
+
+            param_ = (param - mean_) / std_
+            for p in param_:
                 label = label.write(l, p)
                 l += 1
 
@@ -98,16 +121,15 @@ def _parse_tfds(bfm, img_dim, priors, match_thresh,
         labels = labels.stack()
 
         image, labels = _transform_data(img_dim, priors, match_thresh, 
-                                        ignore_thresh, variances)(image, labels)
+                                        ignore_thresh, variances, using_distort=using_distort)(image, labels)
     
         return image, labels
     
     return parse_tfds
 
 
-def _transform_data(img_dim, priors, match_thresh, ignore_thresh, variances,
-                    using_crop=False, using_resize=True, using_flip=False, 
-                    using_distort=True, using_encoding=True):
+def _transform_data(img_dim, priors, match_thresh, ignore_thresh, variances, using_distort,
+                    using_crop=False, using_resize=False, using_flip=False, using_encoding=True):
     def transform_data(img, labels):
         img = tf.cast(img, tf.float32)
 
@@ -165,7 +187,7 @@ def load_tfds_dataset(bfm, load_train, load_valid,
         # if shuffle:
         #     train_dataset = train_dataset.shuffle(buffer_size=buffer_size)
         train_dataset = train_dataset.map(
-            _parse_tfds(bfm, img_dim, priors, match_thresh, ignore_thresh, variances),
+            _parse_tfds(bfm, img_dim, priors, match_thresh, ignore_thresh, variances, using_distort=True),
             num_parallel_calls=tf.data.experimental.AUTOTUNE)
         train_dataset = train_dataset.batch(batch_size, drop_remainder=True)
         train_dataset = train_dataset.prefetch(
@@ -184,7 +206,7 @@ def load_tfds_dataset(bfm, load_train, load_valid,
         
         val_dataset = val_dataset.repeat()
         val_dataset = val_dataset.map(
-            _parse_tfds(bfm, img_dim, priors, match_thresh, ignore_thresh, variances),
+            _parse_tfds(bfm, img_dim, priors, match_thresh, ignore_thresh, variances, using_distort=False),
             num_parallel_calls=tf.data.experimental.AUTOTUNE)
         val_dataset = val_dataset.batch(batch_size, drop_remainder=True)
         val_dataset = val_dataset.prefetch(

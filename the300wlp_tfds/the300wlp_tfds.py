@@ -26,7 +26,7 @@ class The300wlpTfds(tfds.core.GeneratorBasedBuilder):
 
   VERSION = tfds.core.Version('1.0.0')
   RELEASE_NOTES = {
-      '1.0.0': 'Initial release.',
+      '1.0.0': 'Initial release.'
   }
 
   def _info(self) -> tfds.core.DatasetInfo:
@@ -64,7 +64,8 @@ class The300wlpTfds(tfds.core.GeneratorBasedBuilder):
   def _generate_examples(self, dataset):
     """Yields examples."""
     # TODO(the300wlp_tfds): Yields (key, example) tuples from the dataset
-        
+    self.params = []
+
     for i, (sample) in enumerate(dataset):
       img = sample['image'].numpy()
       img = cv2.resize(img, (NEW_IMG_DIM, NEW_IMG_DIM), interpolation=cv2.INTER_AREA)
@@ -76,10 +77,23 @@ class The300wlpTfds(tfds.core.GeneratorBasedBuilder):
       resizeScale = NEW_IMG_DIM / ORI_IMG_DIM
       param = EncodeParams(pose_params, shape_params, exp_params, resizeScale)
       
+      self.params.append(param)
+
       yield i, {
           'image': img,
           'param': param,
       }
+
+    self.params = np.array(self.params)
+
+    mean = np.mean(self.params, axis=0)
+    std = np.std(self.params, axis=0)
+
+    np.save('mean_62', mean)
+    print("[*] saved mean_62.npy")
+    np.save('std_62', std)
+    print("[*] saved std_62.npy")
+    
       
 def RPYToRotationMatrix(phi, gamma, theta): # pitch, yaw, roll
     R_x = np.array([
@@ -124,8 +138,49 @@ def EncodeParams(pose_params, shape_params, exp_params, resizeScale):
     
     return param
 
-if __name__ == "__main__":
+def GetMeanStd():
+
+  mean_o_name = "the300wlp_tfds/mean_62"
+  std_o_name = "the300wlp_tfds/std_62"
+
+  split = 0.8
   
-  ds = The300wlpTfds()
-  dl = tfds.download.DownloadManager
-  ds._split_generators(dl)
+  # dataset = tfds.load('the300w_lp')['train']
+  train_dataset = tfds.load('the300wlp_tfds_640',
+                            data_dir='the300wlp_tfds',
+                            split='train[:{}%]'.format(int(split*100)))
+  train_data_num = int(train_dataset.cardinality().numpy())
+  print("Load training data: {}".format(train_data_num))
+  params = []
+
+  for i, (sample) in enumerate(train_dataset):
+    # img = sample['image'].numpy()
+    # img = cv2.resize(img, (NEW_IMG_DIM, NEW_IMG_DIM), interpolation=cv2.INTER_AREA)
+
+    # pose_params = sample['pose_params'].numpy()
+    
+    # shape_params = sample['shape_params'].numpy()
+    # exp_params = sample['exp_params'].numpy()
+    
+    # resizeScale = NEW_IMG_DIM / ORI_IMG_DIM
+    # param = EncodeParams(pose_params, shape_params, exp_params, resizeScale)
+
+    param = sample['param'].numpy()
+
+    params.append(param)
+
+  params = np.array(params)
+  mean = np.mean(params, axis=0)
+  std = np.std(params, axis=0)
+
+  np.save(mean_o_name, mean)
+  print("[*] saved {}.npy".format(mean_o_name))
+  np.save(std_o_name, std)
+  print("[*] saved {}.npy".format(std_o_name))
+
+if __name__ == "__main__":
+  GetMeanStd()
+
+  # ds = The300wlpTfds()
+  # dl = tfds.download.DownloadManager
+  # ds._split_generators(dl)

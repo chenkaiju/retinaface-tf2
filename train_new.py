@@ -80,7 +80,7 @@ def main(_):
     
     if manager.latest_checkpoint:
         checkpoint.restore(manager.latest_checkpoint)
-        print('[*] load ckpy from {} at step {}.'.format(
+        print('[*] load ckpt from {} at step {}.'.format(
             manager.latest_checkpoint, checkpoint.step.numpy()
         ))
     else:
