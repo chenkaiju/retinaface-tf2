@@ -8,7 +8,7 @@ from modules.models import RetinaFaceModel
 from modules.dataset2 import unpack_label
 from modules.anchor2 import prior_box
 from modules.utils import set_memory_growth, load_yaml
-from modules.utils2 import draw_result
+from modules.utils2 import draw_result, post_process_pred
 
 FILE_DIR = os.path.dirname(os.path.realpath(__file__))
 
@@ -58,21 +58,33 @@ def main(_):
     image = cv2.resize(image, (img_dim, img_dim))
 
     image = tf.convert_to_tensor(image)
-
-    output = model(tf.cast(image[tf.newaxis, ...], tf.float32), training=False)
     
     image = tf.clip_by_value(image, 0, 255)
     image = tf.cast(image, tf.uint8)
     
+    output = model(tf.cast(image[tf.newaxis, ...], tf.float32), training=False)
+    bbox_regressions = output[0]
+    landm_regressions = output[1]
+    param_regressions = output[2]
+    classifications = output[3]
+
+    # [bboxes, landms, params, conf]
+    preds = tf.concat(  
+            [bbox_regressions, 
+             landm_regressions, 
+             param_regressions,
+             classifications[:, :, 1][..., tf.newaxis]], axis=-1)
     
-    faceBox, landmarks, _, _ = unpack_label(output[0], priors)
+    post_out_pred = post_process_pred(preds[0], priors, cfg['variances'], FLAGS.iou_th, FLAGS.score_th)
+    face_box, landmarks, _, _, _ = unpack_label(post_out_pred, priors)
     
     if not os.path.exists(resultDir):
         os.mkdir(resultDir)
     
     outputPath = os.path.join(resultDir, input_fn)
     
-    draw_result(image.numpy(), landmarks.numpy(), faceBox.numpy(), outputPath)
+    org_img = image.numpy()
+    org_img = draw_result(image.numpy(), landmarks.numpy(), face_box.numpy(), outputPath)
     
     print("Done drawing {}".format(outputPath))
             

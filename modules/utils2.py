@@ -1,4 +1,5 @@
 import os
+import tensorflow as tf
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
@@ -6,6 +7,7 @@ from absl import logging
 
 from bfm.bfm import BFMModel
 from modules.dataset2 import load_tfds_dataset
+from modules.anchor2 import decode_tf
 
 FILE_DIR = os.path.dirname(os.path.realpath(__file__))
 
@@ -103,3 +105,18 @@ def draw_result(image, pts, facebox, outputPath=None, color=(0,255,0)):
         
     
     return img
+
+
+def post_process_pred(predictions, priors, variances, iou_th, score_th):
+    
+    decode = decode_tf(predictions, priors, variances)
+    selected_indices = tf.image.non_max_suppression(
+        boxes=decode[:, :4],
+        scores=decode[:, -1],
+        max_output_size=tf.shape(decode)[0],
+        iou_threshold=iou_th,
+        score_threshold=score_th)
+        
+    out = tf.gather(decode, selected_indices)
+    
+    return out

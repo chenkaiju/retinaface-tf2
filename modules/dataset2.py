@@ -224,11 +224,11 @@ def unpack_label(out, priors):
     
     param = out[:, 4+136: 4+136+62]
     
-    #valid = out[:, -2]
+    valid = out[:, -2]
     
     conf = out[:, -1]
     
-    return faceBox, landmarks, param, conf
+    return faceBox, landmarks, param, valid, conf
 
 
 ###############################################################################

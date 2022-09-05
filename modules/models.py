@@ -232,6 +232,7 @@ class RetinaFaceModel(tf.keras.Model):
         out_ch = cfg['out_channel'] # 256
         num_anchor = len(cfg['min_sizes'][0]) # 2
         backbone_type = cfg['backbone_type'] # ResNet50
+    
         
         backbone = Backbone(backbone_type=backbone_type, use_pretrain=True, input_shape=(self.input_size,self.input_size,3))
         self.preprocess = backbone.preprocess
@@ -280,36 +281,7 @@ class RetinaFaceModel(tf.keras.Model):
         
         classifications = tf.keras.layers.Softmax(axis=-1)(classifications)
 
-        if training:
-            out = (bbox_regressions, landm_regressions, param_regressions, classifications)
-            return out
-            
-        else:
-            #TODO: return same format as training
-            # only for batch size 1
-            preds = tf.concat(  # [bboxes, landms, landms_valid, conf]
-                [bbox_regressions, 
-                 landm_regressions, 
-                 param_regressions,
-                 tf.ones_like(classifications[:, :, 0])[..., tf.newaxis],
-                 classifications[:, :, 1][..., tf.newaxis]], axis=-1)
-            
-            priors = prior_box_tf((tf.shape(inputs)[1], tf.shape(inputs)[2]),
-                                self.cfg['min_sizes'],  self.cfg['steps'], self.cfg['clip'])
 
-            outputs = []
-            for idx in range(tf.shape(inputs)[0]):
-                
-                decode_preds = decode_tf(preds[idx], priors, self.cfg['variances'])
-                selected_indices = tf.image.non_max_suppression(
-                    boxes=decode_preds[:, :4],
-                    scores=decode_preds[:, -1],
-                    max_output_size=tf.shape(decode_preds)[0],
-                    iou_threshold=self.iou_th,
-                    score_threshold=self.score_th)
-
-                out = tf.gather(decode_preds, selected_indices)
-                
-                outputs.append(out)
-
-            return outputs
+        out = (bbox_regressions, landm_regressions, param_regressions, classifications)
+        
+        return out

@@ -7,7 +7,7 @@ from modules.models import RetinaFaceModel
 from modules.dataset2 import unpack_label
 from modules.anchor2 import prior_box, decode_tf
 from modules.utils import set_memory_growth, load_yaml
-from modules.utils2 import load_dataset, draw_result
+from modules.utils2 import load_dataset, draw_result, post_process_pred
 
 
 FILE_DIR = os.path.dirname(os.path.realpath(__file__))
@@ -58,37 +58,38 @@ def main(_):
     
     for i, (inputs, labels) in enumerate(val_dataset.take(numBatchToTake)):
   
-            output = model(inputs)
-            if not os.path.exists(resultDir):
-                os.mkdir(resultDir)
-                
+            output = model(inputs, training=False)
+
+            bbox_regressions = output[0]
+            landm_regressions = output[1]
+            param_regressions = output[2]
+            classifications = output[3]
+            
+            # [bboxes, landms, params, conf]
+            preds = tf.concat(  
+                    [bbox_regressions, 
+                     landm_regressions, 
+                     param_regressions,
+                     classifications[:, :, 1][..., tf.newaxis]], axis=-1)
+                            
             img = tf.cast(inputs, tf.uint8)
-            for idx in range(len(output)):
-                      
-                faceBox, landmarks, _, _ = unpack_label(output[idx], priors)
+            res = []
+            for idx in range(tf.shape(preds)[0].numpy()):
+
+                post_out_pred = post_process_pred(preds[idx], priors, cfg['variances'], FLAGS.iou_th, FLAGS.score_th)
+                face_box, landmarks, _, _, _ = unpack_label(post_out_pred, priors)
                 
-                
-                decode_gt = decode_tf(labels[idx], priors, cfg['variances'])
-                selected_indices = tf.image.non_max_suppression(
-                    boxes=decode_gt[:, :4],
-                    scores=decode_gt[:, -1],
-                    max_output_size=tf.shape(decode_gt)[0],
-                    iou_threshold=FLAGS.iou_th,
-                    score_threshold=FLAGS.score_th)
-                
-                out_gt = tf.gather(decode_gt, selected_indices)
-                
-                faceBoxGT, landmarksGT, _, _ = unpack_label(out_gt, priors)
+                post_out_gt = post_process_pred(labels[idx], priors, cfg['variances'], FLAGS.iou_th, FLAGS.score_th)                
+                face_box_gt, landmarks_gt, _, _, _ = unpack_label(post_out_gt, priors)
 
                 outputPath = os.path.join(resultDir, "{}_{}.jpg".format(i, idx))
 
                 org_img = img[idx].numpy()
-                org_img = draw_result(org_img, landmarks.numpy(), faceBox.numpy(), outputPath, color=(255,255,0))
-                org_img = draw_result(org_img, landmarksGT.numpy(), faceBoxGT.numpy(), outputPath, color=(0,255,0))
+                org_img = draw_result(org_img, landmarks.numpy(), face_box.numpy(), outputPath, color=(255,255,0))
+                org_img = draw_result(org_img, landmarks_gt.numpy(), face_box_gt.numpy(), outputPath, color=(0,255,0))
             
                 print("Done drawing {}".format(outputPath))
             
-
     return
 
 if __name__ == '__main__':

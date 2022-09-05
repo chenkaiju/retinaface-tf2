@@ -4,9 +4,8 @@ import os
 import tensorflow as tf
 
 from modules.utils import (set_memory_growth, load_yaml, ProgressBar)
-from modules.utils2 import load_dataset, draw_result
+from modules.utils2 import load_dataset, draw_result, post_process_pred
 from modules.dataset2 import unpack_label
-from modules.anchor2 import decode_tf
 from modules.models import RetinaFaceModel
 from modules.anchor import prior_box
 from modules.lr_scheduler import MultiStepWarmUpLR
@@ -146,27 +145,34 @@ def main(_):
             with summary_writer.as_default():
                 
                 output = model(inputs, training=False)
+                
+                bbox_regressions = output[0]
+                landm_regressions = output[1]
+                param_regressions = output[2]
+                classifications = output[3]
+                
+                # [bboxes, landms, params, conf]
+                preds = tf.concat(  
+                    [bbox_regressions, 
+                     landm_regressions, 
+                     param_regressions,
+                     classifications[:, :, 1][..., tf.newaxis]], axis=-1)
+                                
                 img = tf.cast(inputs, tf.uint8)
                 res = []
-                for idx in range(len(output)):
+                for idx in range(tf.shape(preds)[0].numpy()):
                     
                     img_viz = img[idx].numpy()
                     
-                    faceBox, landmarks, _, _ = unpack_label(output[idx], priors)
+                    post_out_pred = post_process_pred(preds[idx], priors, cfg['variances'], FLAGS.iou_th, FLAGS.score_th)
+                    
+                    faceBox, landmarks, _, _, _ = unpack_label(post_out_pred, priors)
                     
                     img_viz = draw_result(img_viz, landmarks.numpy(), faceBox.numpy(), color=(255,255,0))
                     
-                    decode_gt = decode_tf(labels[idx], priors, cfg['variances'])
-                    selected_indices = tf.image.non_max_suppression(
-                    boxes=decode_gt[:, :4],
-                    scores=decode_gt[:, -1],
-                    max_output_size=tf.shape(decode_gt)[0],
-                    iou_threshold=FLAGS.iou_th,
-                    score_threshold=FLAGS.score_th)
+                    post_out_gt = post_process_pred(labels[idx], priors, cfg['variances'], FLAGS.iou_th, FLAGS.score_th)
                 
-                    out_gt = tf.gather(decode_gt, selected_indices)
-                
-                    faceBoxGT, landmarksGT, _, _ = unpack_label(out_gt, priors)
+                    faceBoxGT, landmarksGT, _, _, _ = unpack_label(post_out_gt, priors)
                     img_viz = draw_result(img_viz, landmarksGT.numpy(), faceBoxGT.numpy(), color=(0,255,0))
             
                     res.append(img_viz)
