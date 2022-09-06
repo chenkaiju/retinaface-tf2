@@ -94,7 +94,11 @@ def main(_):
             losses = {}
             losses['reg'] = tf.reduce_sum(model.losses)
             losses['loc'], losses['landm'], losses['param'], losses['class'] = \
-                multi_box_loss(labels, predictions)            
+                multi_box_loss(labels, predictions)
+            losses['loc'] *= cfg['loc_loss_weight']
+            losses['landm'] *= cfg['pts_loss_weight']
+            losses['param'] *= cfg['param_loss_weight']
+            losses['class'] *= cfg['cls_loss_weight']
             total_loss = tf.add_n([l for l in losses.values()])
         
         grads = tape.gradient(total_loss, model.trainable_variables)

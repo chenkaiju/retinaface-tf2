@@ -39,3 +39,9 @@ momentum: 0.9
 pretrain: True
 
 save_steps: 1000
+
+# loss weights
+loc_loss_weight: 0.25
+pts_loss_weight: 0.1
+param_loss_weight: 0.1
+cls_loss_weight: 1.0
