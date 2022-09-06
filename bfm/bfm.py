@@ -33,7 +33,7 @@ def _to_ctype(arr):
 
 
 class BFMModel(object):
-    def __init__(self, cfg, bfm_fp, shape_dim=40, exp_dim=10):
+    def __init__(self, bfm_fp, shape_dim=40, exp_dim=10):
         bfm = _load(bfm_fp)
         self.u = bfm.get('u').astype(np.float32)  # fix bug
         self.w_shp = bfm.get('w_shp').astype(np.float32)[..., :shape_dim]
@@ -51,7 +51,3 @@ class BFMModel(object):
         self.u_base = self.u[self.keypoints].reshape(-1, 1)
         self.w_shp_base = self.w_shp[self.keypoints]
         self.w_exp_base = self.w_exp[self.keypoints]
-
-        # params
-        self.param_mean = _load(cfg['param_mean'])
-        self.param_std = _load(cfg['param_std'])

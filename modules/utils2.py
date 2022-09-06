@@ -1,42 +1,8 @@
-import os
 import tensorflow as tf
 import cv2
 import numpy as np
-from absl import logging
 
-from bfm.bfm import BFMModel
-from modules.dataset2 import load_tfds_dataset
 from modules.anchor2 import decode_tf
-
-FILE_DIR = os.path.dirname(os.path.realpath(__file__))
-
-
-def load_dataset(cfg, priors, load_train=True, load_valid=False):
-    """load dataset"""
-    logging.info("load dataset from {}".format(cfg['tfds_name']))
-    
-    bfm = BFMModel(
-        cfg=cfg,
-        bfm_fp=os.path.join("bfm", "bfm_noneck_v3.pkl"),
-        shape_dim=40,
-        exp_dim=10
-    )
-
-    (train_dataset, train_data_num), (val_dataset, val_data_num) = load_tfds_dataset(
-        bfm,
-        load_train=load_train,
-        load_valid=load_valid,
-        dataset_dir=cfg['dataset_dir'],
-        tfds_name=cfg['tfds_name'],
-        batch_size=cfg['batch_size'],
-        img_dim=cfg['input_size'],
-        using_encoding=True,
-        priors=priors,
-        match_thresh=cfg['match_thresh'],
-        ignore_thresh=cfg['ignore_thresh'],
-        variances=cfg['variances'])
-    
-    return (train_dataset, train_data_num), (val_dataset, val_data_num), bfm
 
 
 ###############################################################################

@@ -4,8 +4,8 @@ import os
 import tensorflow as tf
 
 from modules.utils import (set_memory_growth, load_yaml, ProgressBar)
-from modules.utils2 import load_dataset, draw_result, post_process_pred
-from modules.dataset2 import unpack_label, reconstruct_landmark, get_facebox2d
+from modules.utils2 import draw_result, post_process_pred
+from modules.dataset2 import The300wlp_dataset, unpack_label, reconstruct_landmark, get_facebox2d
 from modules.models import RetinaFaceModel
 from modules.anchor import prior_box
 from modules.lr_scheduler import MultiStepWarmUpLR
@@ -40,8 +40,11 @@ def main(_):
     priors = prior_box((cfg['input_size'], cfg['input_size']),
                        cfg['min_sizes'], cfg['steps'], cfg['clip'])
     
-    (train_dataset, train_num), (_, _), bfm = load_dataset(cfg, priors)
-    
+    dataset = The300wlp_dataset(cfg, priors, 
+                                load_train=True,
+                                load_valid=False)
+    train_dataset, train_num = dataset.train_dataset, dataset.train_data_num
+
     data1 = train_dataset.take(1)
     for input, label in data1:
         pred = model(input)
@@ -175,8 +178,8 @@ def main(_):
                     
                     img_dim =  img_viz.shape[0]
                     param = param[0].numpy()
-                    param = param * bfm.param_std + bfm.param_mean
-                    lmk2d_recon = reconstruct_landmark(bfm, param, img_dim)[:, :2]
+                    param = param * dataset.param_std + dataset.param_mean
+                    lmk2d_recon = reconstruct_landmark(dataset.bfm, param, img_dim)[:, :2]
                     lmk2d_recon /= img_dim
                     faceBox_recon = get_facebox2d(lmk2d_recon)
                     img_viz = draw_result(img_viz, lmk2d_recon.numpy(), faceBox_recon.numpy(), color=(0,0,255))

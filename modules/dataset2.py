@@ -1,7 +1,148 @@
 import tensorflow as tf
 import tensorflow_datasets as tfds
+import os
+
 from modules.anchor2 import encode_tf
-import numpy as np
+from bfm.bfm import _load, BFMModel
+
+class The300wlp_dataset():
+    def __init__(self, cfg, priors, load_train, load_valid):
+
+        self.bfm = BFMModel(
+            bfm_fp=os.path.join("bfm", "bfm_noneck_v3.pkl"),
+            shape_dim=40,
+            exp_dim=10
+        )
+
+        # params
+        self.param_mean = _load(cfg['param_mean'])
+        self.param_std = _load(cfg['param_std'])
+
+        (self.train_dataset, self.train_data_num), (self.val_dataset, self.val_data_num) = \
+            self.load_tfds_dataset(
+                self.bfm,
+                load_train=load_train,
+                load_valid=load_valid,
+                dataset_dir=cfg['dataset_dir'],
+                tfds_name=cfg['tfds_name'],
+                batch_size=cfg['batch_size'],
+                img_dim=cfg['input_size'],
+                using_encoding=True,
+                priors=priors,
+                match_thresh=cfg['match_thresh'],
+                ignore_thresh=cfg['ignore_thresh'],
+                variances=cfg['variances'])
+
+    def load_tfds_dataset(self, bfm, load_train, load_valid, 
+                          dataset_dir, tfds_name, batch_size, img_dim,
+                          using_encoding=True, priors=None, 
+                          match_thresh=0.45, ignore_thresh=0.3, variances=[0.1, 0.2]):
+        
+        """load dataset from tfrecord"""
+        if not using_encoding:
+            assert batch_size == 1  # dynamic data len when using_encoding
+        else:
+            assert priors is not None
+
+        split = 0.8
+        
+        if load_train:
+            # train
+            train_dataset = tfds.load(tfds_name, 
+                                    data_dir=dataset_dir,
+                                    split='train[:{}%]'.format(int(split*100)))
+            train_data_num = int(train_dataset.cardinality().numpy())
+            print("Load training data: {}".format(train_data_num))
+            
+            train_dataset = train_dataset.repeat()
+            # if shuffle:
+            #     train_dataset = train_dataset.shuffle(buffer_size=buffer_size)
+            train_dataset = train_dataset.map(
+                self._parse_tfds(bfm, img_dim, priors, match_thresh, ignore_thresh, variances, using_distort=True),
+                num_parallel_calls=tf.data.experimental.AUTOTUNE)
+            train_dataset = train_dataset.batch(batch_size, drop_remainder=True)
+            train_dataset = train_dataset.prefetch(
+                buffer_size=tf.data.experimental.AUTOTUNE)
+        else:
+            train_dataset = None
+            train_data_num = None
+        
+        if load_valid:
+            # val
+            val_dataset = tfds.load(tfds_name, 
+                                    data_dir=dataset_dir,
+                                    split='train[{}%:]'.format(int(split*100)))
+            val_data_num = int(val_dataset.cardinality().numpy())
+            print("Load val data: {}".format(val_data_num))
+            
+            val_dataset = val_dataset.repeat()
+            val_dataset = val_dataset.map(
+                self._parse_tfds(bfm, img_dim, priors, match_thresh, ignore_thresh, variances, using_distort=False),
+                num_parallel_calls=tf.data.experimental.AUTOTUNE)
+            val_dataset = val_dataset.batch(batch_size, drop_remainder=True)
+            val_dataset = val_dataset.prefetch(
+                buffer_size=tf.data.experimental.AUTOTUNE)
+        else:
+            val_dataset = None
+            val_data_num = None
+
+        return (train_dataset, train_data_num), (val_dataset, val_data_num)
+            
+    def _parse_tfds(self, bfm, img_dim, priors, match_thresh, 
+                    ignore_thresh, variances, using_distort=True, numFace=1):
+        
+        def parse_tfds(dataset):
+            
+            labels = tf.TensorArray(tf.float32, size=0, dynamic_size=True) #, dynamic_size=True, clear_after_read=False
+            image = dataset['image']
+
+            for n in tf.range(numFace):
+                l = 0
+                label = tf.TensorArray(tf.float32, size=0, dynamic_size=True)
+                param = dataset['param']
+                
+                img_dim_raw = image.shape[0]
+                lmk_3d = reconstruct_landmark(bfm, param, img_dim_raw)
+                lmk_2d = tf.cast(lmk_3d[:, :2], tf.float32)
+                
+                facebox = tf.squeeze(get_facebox2d(lmk_2d))
+                
+                # stack and normalize facebox [0, 1]
+                for i in range(facebox.shape[0]):
+                    label = label.write(l, facebox[i] / img_dim_raw)
+                    l += 1
+                
+                # stack and normalize lmk [0, 1]
+                lmk_2d = tf.transpose(tf.squeeze(lmk_2d))
+                for i in range(lmk_2d.shape[0]):
+                    for j in range(lmk_2d.shape[1]):
+                        label = label.write(l, lmk_2d[i][j] / img_dim_raw)
+                        l +=  1
+                
+                param = tf.cast(param, tf.float32)
+                mean_ = self.param_mean
+                std_ = self.param_std
+
+                param_ = (param - mean_) / std_
+                for p in param_:
+                    label = label.write(l, p)
+                    l += 1
+
+                # valid
+                label = label.write(l, tf.constant(1., dtype=tf.float32))
+                l += 1
+                    
+                labels = labels.write(n, label.stack())
+                    
+            labels = labels.stack()
+
+            image, labels = _transform_data(img_dim, priors, match_thresh, 
+                                            ignore_thresh, variances, using_distort=using_distort)(image, labels)
+        
+            return image, labels
+        
+        return parse_tfds
+
 
 def DecodeParams(param):
     if len(param) != 62:
@@ -55,60 +196,6 @@ def get_facebox2d(landmark_2d, ratio=0.1):
     facebox = tf.reshape(facebox, [-1, 4])
     return facebox
 
-def _parse_tfds(bfm, img_dim, priors, match_thresh, 
-                ignore_thresh, variances, using_distort=True, numFace=1):
-    
-    def parse_tfds(dataset):
-        
-        labels = tf.TensorArray(tf.float32, size=0, dynamic_size=True) #, dynamic_size=True, clear_after_read=False
-        image = dataset['image']
-
-        for n in tf.range(numFace):
-            l = 0
-            label = tf.TensorArray(tf.float32, size=0, dynamic_size=True)
-            param = dataset['param']
-            
-            img_dim_raw = image.shape[0]
-            lmk_3d = reconstruct_landmark(bfm, param, img_dim_raw)
-            lmk_2d = tf.cast(lmk_3d[:, :2], tf.float32)
-            
-            facebox = tf.squeeze(get_facebox2d(lmk_2d))
-            
-            # stack and normalize facebox [0, 1]
-            for i in range(facebox.shape[0]):
-                label = label.write(l, facebox[i] / img_dim_raw)
-                l += 1
-            
-            # stack and normalize lmk [0, 1]
-            lmk_2d = tf.transpose(tf.squeeze(lmk_2d))
-            for i in range(lmk_2d.shape[0]):
-                for j in range(lmk_2d.shape[1]):
-                    label = label.write(l, lmk_2d[i][j] / img_dim_raw)
-                    l +=  1
-            
-            param = tf.cast(param, tf.float32)
-            mean_ = bfm.param_mean
-            std_ = bfm.param_std
-
-            param_ = (param - mean_) / std_
-            for p in param_:
-                label = label.write(l, p)
-                l += 1
-
-            # valid
-            label = label.write(l, tf.constant(1., dtype=tf.float32))
-            l += 1
-                
-            labels = labels.write(n, label.stack())
-                
-        labels = labels.stack()
-
-        image, labels = _transform_data(img_dim, priors, match_thresh, 
-                                        ignore_thresh, variances, using_distort=using_distort)(image, labels)
-    
-        return image, labels
-    
-    return parse_tfds
 
 
 def _transform_data(img_dim, priors, match_thresh, ignore_thresh, variances, using_distort,
@@ -145,60 +232,6 @@ def _transform_data(img_dim, priors, match_thresh, ignore_thresh, variances, usi
         return img, labels
     return transform_data
 
-def load_tfds_dataset(bfm, load_train, load_valid, 
-                      dataset_dir, tfds_name, batch_size, img_dim,
-                      using_encoding=True, priors=None, 
-                      match_thresh=0.45, ignore_thresh=0.3, variances=[0.1, 0.2]):
-    
-    """load dataset from tfrecord"""
-    if not using_encoding:
-        assert batch_size == 1  # dynamic data len when using_encoding
-    else:
-        assert priors is not None
-
-    split = 0.8
-    
-    if load_train:
-        # train
-        train_dataset = tfds.load(tfds_name, 
-                                data_dir=dataset_dir,
-                                split='train[:{}%]'.format(int(split*100)))
-        train_data_num = int(train_dataset.cardinality().numpy())
-        print("Load training data: {}".format(train_data_num))
-        
-        train_dataset = train_dataset.repeat()
-        # if shuffle:
-        #     train_dataset = train_dataset.shuffle(buffer_size=buffer_size)
-        train_dataset = train_dataset.map(
-            _parse_tfds(bfm, img_dim, priors, match_thresh, ignore_thresh, variances, using_distort=True),
-            num_parallel_calls=tf.data.experimental.AUTOTUNE)
-        train_dataset = train_dataset.batch(batch_size, drop_remainder=True)
-        train_dataset = train_dataset.prefetch(
-            buffer_size=tf.data.experimental.AUTOTUNE)
-    else:
-        train_dataset = None
-        train_data_num = None
-    
-    if load_valid:
-        # val
-        val_dataset = tfds.load(tfds_name, 
-                                data_dir=dataset_dir,
-                                split='train[{}%:]'.format(int(split*100)))
-        val_data_num = int(val_dataset.cardinality().numpy())
-        print("Load val data: {}".format(val_data_num))
-        
-        val_dataset = val_dataset.repeat()
-        val_dataset = val_dataset.map(
-            _parse_tfds(bfm, img_dim, priors, match_thresh, ignore_thresh, variances, using_distort=False),
-            num_parallel_calls=tf.data.experimental.AUTOTUNE)
-        val_dataset = val_dataset.batch(batch_size, drop_remainder=True)
-        val_dataset = val_dataset.prefetch(
-            buffer_size=tf.data.experimental.AUTOTUNE)
-    else:
-        val_dataset = None
-        val_data_num = None
-
-    return (train_dataset, train_data_num), (val_dataset, val_data_num)
 
 def unpack_label(out, priors):
     """_summary_
