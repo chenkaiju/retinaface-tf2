@@ -173,7 +173,11 @@ def main(_):
                     faceBox, landmarks, param, _, _ = unpack_label(post_out_pred, priors)
                     img_viz = draw_result(img_viz, landmarks.numpy(), faceBox.numpy(), color=(255,255,0))
                     
-                    lmk2d_recon = reconstruct_landmark(bfm, param[0], img_viz.shape[0])[:, :2]
+                    img_dim =  img_viz.shape[0]
+                    param = param[0].numpy()
+                    param = param * bfm.param_std + bfm.param_mean
+                    lmk2d_recon = reconstruct_landmark(bfm, param, img_dim)[:, :2]
+                    lmk2d_recon /= img_dim
                     faceBox_recon = get_facebox2d(lmk2d_recon)
                     img_viz = draw_result(img_viz, lmk2d_recon.numpy(), faceBox_recon.numpy(), color=(0,0,255))
 

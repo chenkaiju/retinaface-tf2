@@ -16,11 +16,12 @@ def load_dataset(cfg, priors, load_train=True, load_valid=False):
     logging.info("load dataset from {}".format(cfg['tfds_name']))
     
     bfm = BFMModel(
+        cfg=cfg,
         bfm_fp=os.path.join("bfm", "bfm_noneck_v3.pkl"),
         shape_dim=40,
         exp_dim=10
     )
-        
+
     (train_dataset, train_data_num), (val_dataset, val_data_num) = load_tfds_dataset(
         bfm,
         load_train=load_train,

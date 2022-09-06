@@ -13,6 +13,9 @@ using_bin: True
 using_flip: True
 using_distort: True
 
+param_mean: "the300wlp_tfds/mean_62.npy"
+param_std: "the300wlp_tfds/std_62.npy"
+
 # testing dataset
 testing_dataset_path: './data/widerface/val'
 
@@ -28,7 +31,7 @@ variances: [0.1, 0.2]
 clip: False
 
 # training setting
-epoch: 100
+epoch: 200
 init_lr: !!float 1e-2
 lr_decay_epoch: [50, 68]
 lr_rate: 0.1

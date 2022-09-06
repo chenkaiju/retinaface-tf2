@@ -1,25 +1,7 @@
 import tensorflow as tf
 import tensorflow_datasets as tfds
-from modules.anchor2 import encode_tf, decode_tf
+from modules.anchor2 import encode_tf
 import numpy as np
-
-MEAN_PATH = "the300wlp_tfds/mean_62.npy"
-STD_PATH = "the300wlp_tfds/std_62.npy"
-
-def _get_suffix(filename):
-    """ a.jpg -> jpg """
-    pos = filename.rfind('.')
-    if pos == -1:
-        return ''
-    return filename[pos + 1:]
-
-def _load_npy(fp):
-    suffix = _get_suffix(fp)
-    if suffix == 'npy':
-        return np.load(fp)
-    else:
-        print("File not npy format")
-        return False
 
 def DecodeParams(param):
     if len(param) != 62:
@@ -105,8 +87,8 @@ def _parse_tfds(bfm, img_dim, priors, match_thresh,
                     l +=  1
             
             param = tf.cast(param, tf.float32)
-            mean_ = _load_npy(MEAN_PATH)
-            std_ = _load_npy(STD_PATH)
+            mean_ = bfm.param_mean
+            std_ = bfm.param_std
 
             param_ = (param - mean_) / std_
             for p in param_:
