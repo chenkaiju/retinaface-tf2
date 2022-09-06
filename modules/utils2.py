@@ -21,7 +21,7 @@ def load_dataset(cfg, priors, load_train=True, load_valid=False):
         exp_dim=10
     )
         
-    dataset = load_tfds_dataset(
+    (train_dataset, train_data_num), (val_dataset, val_data_num) = load_tfds_dataset(
         bfm,
         load_train=load_train,
         load_valid=load_valid,
@@ -35,7 +35,7 @@ def load_dataset(cfg, priors, load_train=True, load_valid=False):
         ignore_thresh=cfg['ignore_thresh'],
         variances=cfg['variances'])
     
-    return dataset
+    return (train_dataset, train_data_num), (val_dataset, val_data_num), bfm
 
 
 ###############################################################################

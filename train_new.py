@@ -5,7 +5,7 @@ import tensorflow as tf
 
 from modules.utils import (set_memory_growth, load_yaml, ProgressBar)
 from modules.utils2 import load_dataset, draw_result, post_process_pred
-from modules.dataset2 import unpack_label
+from modules.dataset2 import unpack_label, reconstruct_landmark, get_facebox2d
 from modules.models import RetinaFaceModel
 from modules.anchor import prior_box
 from modules.lr_scheduler import MultiStepWarmUpLR
@@ -40,7 +40,7 @@ def main(_):
     priors = prior_box((cfg['input_size'], cfg['input_size']),
                        cfg['min_sizes'], cfg['steps'], cfg['clip'])
     
-    (train_dataset, train_num), (_, _) = load_dataset(cfg, priors)
+    (train_dataset, train_num), (_, _), bfm = load_dataset(cfg, priors)
     
     data1 = train_dataset.take(1)
     for input, label in data1:
@@ -94,7 +94,7 @@ def main(_):
             losses = {}
             losses['reg'] = tf.reduce_sum(model.losses)
             losses['loc'], losses['landm'], losses['param'], losses['class'] = \
-                multi_box_loss(labels, predictions)
+                multi_box_loss(labels, predictions)            
             total_loss = tf.add_n([l for l in losses.values()])
         
         grads = tape.gradient(total_loss, model.trainable_variables)
@@ -166,10 +166,13 @@ def main(_):
                     
                     post_out_pred = post_process_pred(preds[idx], priors, cfg['variances'], FLAGS.iou_th, FLAGS.score_th)
                     
-                    faceBox, landmarks, _, _, _ = unpack_label(post_out_pred, priors)
-                    
+                    faceBox, landmarks, param, _, _ = unpack_label(post_out_pred, priors)
                     img_viz = draw_result(img_viz, landmarks.numpy(), faceBox.numpy(), color=(255,255,0))
                     
+                    lmk2d_recon = reconstruct_landmark(bfm, param[0], img_viz.shape[0])[:, :2]
+                    faceBox_recon = get_facebox2d(lmk2d_recon)
+                    img_viz = draw_result(img_viz, lmk2d_recon.numpy(), faceBox_recon.numpy(), color=(0,0,255))
+
                     post_out_gt = post_process_pred(labels[idx], priors, cfg['variances'], FLAGS.iou_th, FLAGS.score_th)
                 
                     faceBoxGT, landmarksGT, _, _, _ = unpack_label(post_out_gt, priors)

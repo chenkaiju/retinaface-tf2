@@ -49,7 +49,8 @@ def reconstruct_landmark(bfm, param, img_size=450):
                 
     y_inv = tf.constant([1.0, -1.0, 1.0], dtype=tf.float64, shape=[3,1])
     y_inv = tf.tile(y_inv, [1, 68])
-                
+    
+    vertex = tf.cast(vertex, y_inv.dtype)
     vertex = tf.multiply(vertex, y_inv)
     vertex = offset_y + vertex
 
